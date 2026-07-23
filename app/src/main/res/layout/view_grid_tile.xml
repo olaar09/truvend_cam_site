@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_grid_tile"
+    android:clickable="true"
+    android:focusable="true"
+    android:focusableInTouchMode="false">
+
+    <SurfaceView
+        android:id="@+id/tileSurface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <TextView
+        android:id="@+id/tileLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:background="@drawable/bg_overlay_panel"
+        android:padding="6dp"
+        android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+        android:textColor="@color/text_primary" />
+
+    <TextView
+        android:id="@+id/tileError"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="@string/tile_error"
+        android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+        android:textColor="@color/error"
+        android:visibility="gone" />
+</FrameLayout>

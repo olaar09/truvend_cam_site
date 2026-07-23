@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#FF0A0A0A</color>
+    <color name="bg_panel">#E6121212</color>
+    <color name="bg_tile_error">#FF1A1A1A</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FFB0B0B0</color>
+    <color name="accent">#FF4CAF50</color>
+    <color name="accent_focus">#FF81C784</color>
+    <color name="error">#FFE57373</color>
+    <color name="overlay_scrim">#99000000</color>
+    <color name="channel_chip_bg">#CC212121</color>
+    <color name="channel_chip_selected">#FF2E7D32</color>
+    <color name="focus_ring">#FFFFFFFF</color>
+    <color name="divider">#FF333333</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext for ISAPI (HTTP/80) on the LAN.
+  Android Network Security Config cannot express RFC1918 CIDR ranges, so cleartext
+  is permitted via this config file (not android:usesCleartextTraffic on <application>).
+  The app only opens HTTP to the user-configured DVR IP.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
