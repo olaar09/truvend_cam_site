@@ -50,14 +50,12 @@
             android:name=".ui.LiveViewActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
             android:exported="false"
-            android:screenOrientation="landscape"
             android:theme="@style/Theme.TruvendCam.Fullscreen" />
 
         <activity
             android:name=".ui.GridActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode"
             android:exported="false"
-            android:screenOrientation="landscape"
             android:theme="@style/Theme.TruvendCam.Fullscreen" />
 
         <activity
