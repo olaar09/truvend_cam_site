@@ -1,3 +1,34 @@
+# Truvend Cam
+
+**One document for the whole system:** [`docs/SYSTEM-ARCHITECTURE.md`](docs/SYSTEM-ARCHITECTURE.md)  
+(architecture diagrams · server tools · Android tools · DVR settings including H.264 / stream type Video · ports · proof ladder)
+
+**Working path for step-by-step guides:** [`docs/`](docs/README.md)
+
+| Doc | Audience |
+|---|---|
+| [docs/SYSTEM-ARCHITECTURE.md](docs/SYSTEM-ARCHITECTURE.md) | **Start here** — holistic architecture |
+| [docs/README.md](docs/README.md) | Index of all step guides |
+| [docs/00-overview.md](docs/00-overview.md) | Short big-picture intro |
+| [docs/01-local-live-view.md](docs/01-local-live-view.md) | Phase 1 on-site video |
+| [docs/02-rtsp-relay.md](docs/02-rtsp-relay.md) | In-app relay (replaces Termux socat) |
+| [docs/03-remote-tunnel.md](docs/03-remote-tunnel.md) | WireGuard + VPS / MediaMTX |
+| [docs/04-vps-server-setup.md](docs/04-vps-server-setup.md) | One-time VPS setup script |
+| [docs/05-wireguard-on-box.md](docs/05-wireguard-on-box.md) | WireGuard on phone / TV box |
+| [docs/06-sitectl.md](docs/06-sitectl.md) | Provision sites with `sitectl` |
+| [docs/07-sitectl-usage-and-api.md](docs/07-sitectl-usage-and-api.md) | Full `sitectl` usage + future API integration |
+| [docs/08-server-operations.md](docs/08-server-operations.md) | VPS day-to-day ops, diagnostics, backup |
+| [docs/technical/REFERENCE.md](docs/technical/REFERENCE.md) | Deep technical (Android / overall) |
+| [docs/technical/SERVER.md](docs/technical/SERVER.md) | Deep technical (WireGuard / MediaMTX server) |
+| [docs/technical/WIREGUARD-CLIENT.md](docs/technical/WIREGUARD-CLIENT.md) | Deep technical (WireGuard on the box) |
+| [docs/technical/SITECTL.md](docs/technical/SITECTL.md) | Deep technical (`sitectl` / registry) |
+| [scripts/setup-server.sh](scripts/setup-server.sh) | VPS one-time installer |
+| [scripts/sitectl](scripts/sitectl) | Site add / remove / list / sync |
+
+The section below is the original **Phase 1 as-built** archive (lessons learned, rejected approaches). Prefer `docs/SYSTEM-ARCHITECTURE.md` for day-to-day understanding.
+
+---
+
 # Phase 1 — As-Built Documentation
 
 **Status:** Working. Android app connects to the Hikvision DVR and plays live video.  
@@ -81,10 +112,12 @@ In the web UI:
 |---|---|---|
 | ISAPI / Hikvision-CGI | Network → Advanced → Integration Protocol | **Enabled** |
 | Illegal Login Lock | System → Security | **Off** while developing |
+| Stream type | Record → Encoding (per channel) | **Video** |
+| Video encoding | Record → Encoding (per channel) | **H.264** |
 | I-frame interval | Record → Encoding | **= frame rate** (25 fps → 25) |
 | Sub-stream | Record → Encoding | **Enabled** on every channel |
 
-Record the **model and firmware version** from *System → Device Information*.
+Full system map (tools, diagrams, all settings): [`docs/SYSTEM-ARCHITECTURE.md`](docs/SYSTEM-ARCHITECTURE.md).
 
 ### Step 5 — Android app
 
@@ -224,6 +257,8 @@ Recorded so these are not revisited.
 - [ ] DVR set to DHCP, address noted
 - [ ] DVR login page loads in a browser
 - [ ] ISAPI enabled
+- [ ] Stream type set to **Video** on used channels
+- [ ] Video encoding set to **H.264** on used channels
 - [ ] Sub-stream enabled on all channels
 - [ ] I-frame interval set to match frame rate
 - [ ] DVR clock set manually (no NTP)
@@ -259,8 +294,11 @@ Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
 ### Project layout
 
 ```
-data/     DvrConfig, EncryptedPrefs storage
-network/  IsapiClient (digest), IsapiXmlParser, RtspUrlBuilder, WifiNetworkBinder
-player/   VideoSource, VlcVideoSource, PlayerState
-ui/       SetupActivity, LiveViewActivity, GridActivity, LogActivity
+data/       DvrConfig, RelaySettings, EncryptedPrefs storage
+network/    IsapiClient (digest), IsapiXmlParser, RtspUrlBuilder, WifiNetworkBinder
+player/     VideoSource, VlcVideoSource, PlayerState
+forwarder/  ForwarderServer (TCP relay / socat replacement)
+service/    ForwarderService, BootReceiver
+ui/         SetupActivity, LiveViewActivity, GridActivity, LogActivity, RelayActivity
+docs/       Novice + technical documentation (start at docs/README.md)
 ```

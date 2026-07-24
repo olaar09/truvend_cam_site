@@ -1,0 +1,182 @@
+# 6 — `sitectl` (provision a new site on the VPS)
+
+**Goal:** Add / remove / list camera sites on the backend in **one command**, keeping WireGuard, the site registry, and MediaMTX in sync.  
+**Script:** [`scripts/sitectl`](../scripts/sitectl)  
+**Runs on:** the VPS, as **root**  
+**Replaces / supersedes:** the older one-shot `add-site.sh` helper from `setup-server.sh` for day-to-day provisioning.
+
+---
+
+## What it does (three layers at once)
+
+```mermaid
+flowchart LR
+  CMD["sitectl add site002 …"] --> WG["1. WireGuard<br/>keys + peer + tunnel IP"]
+  CMD --> REG["2. Registry<br/>/etc/relay/sites.db"]
+  CMD --> MTX["3. MediaMTX<br/>regenerate paths + restart"]
+  REG --> MTX
+  WG --> BOX["Client .conf + QR<br/>for the Android box"]
+```
+
+| Layer | What gets created |
+|---|---|
+| **WireGuard** | Site keypair, next free `10.8.0.N`, live `wg set` peer, saved `wg0.conf` |
+| **Registry** | One row in `/etc/relay/sites.db` (source of truth) |
+| **MediaMTX** | All camera paths rebuilt from the registry (not hand-edited) |
+
+Subcommands are shaped like a future HTTP API:
+
+| CLI | Future API |
+|---|---|
+| `sitectl add <name> …` | `POST /api/sites` |
+| `sitectl remove <name>` | `DELETE /api/sites/<name>` |
+| `sitectl list` | `GET /api/sites` |
+| `sitectl show <name>` | `GET /api/sites/<name>` |
+| `sitectl sync` | `POST /api/sync` |
+
+Add `--json` to any command for machine-readable output (thin HTTP wrapper later).
+
+---
+
+## First-time config — `/etc/relay/relay.env`
+
+On first run, `sitectl` creates directories under `/etc/relay/` and a template env file, then **stops** until you edit it:
+
+```bash
+sudo ./sitectl list
+# → created /etc/relay/relay.env — set RELAY_ENDPOINT then run again
+```
+
+Edit `/etc/relay/relay.env`:
+
+```bash
+# Public address boxes dial. Prefer a DOMAIN so the VPS IP can change
+# without re-flashing every site.
+RELAY_ENDPOINT="relay.example.com:51820"
+
+WG_SUBNET="10.8.0"
+WG_CIDR="10.8.0.0/16"
+
+KEEPALIVE=25
+
+WEBRTC_HOST="relay.example.com"
+WEBRTC_PORT=8889
+```
+
+| Variable | Meaning |
+|---|---|
+| `RELAY_ENDPOINT` | What goes in the box WireGuard `Endpoint=` (host:port) |
+| `WG_SUBNET` | Tunnel prefix; sites get `10.8.0.2`, `.3`, … |
+| `WG_CIDR` | Client `AllowedIPs` (split tunnel range) |
+| `KEEPALIVE` | Persistent keepalive seconds (**25** required) |
+| `WEBRTC_HOST` / `WEBRTC_PORT` | Printed browser URLs after `add` |
+
+Also required: server WireGuard keys at `/etc/relay/keys/server_*.key` (copied automatically from `/etc/wireguard/keys/` if those already exist from `setup-server.sh`).
+
+---
+
+## Novice usage
+
+### Add a site
+
+```bash
+sudo ./sitectl add site002 --dvr-user admin --dvr-pass 'SECRET' --channels 4
+```
+
+You get:
+
+- Tunnel IP assigned
+- Full WireGuard client config printed (+ QR if `qrencode` is installed)
+- MediaMTX paths like `site002_ch1` … `site002_ch4`
+- Browser URLs: `http://<WEBRTC_HOST>:8889/site002_chN` (use **Firefox** until HTTPS is set up)
+
+Then on the box: import that config into WireGuard → turn on tunnel → enable Truvend Cam **RTSP relay** ([05](05-wireguard-on-box.md) + [02](02-rtsp-relay.md)).
+
+### List / show / remove / repair
+
+```bash
+sudo ./sitectl list
+sudo ./sitectl show site002
+sudo ./sitectl remove site002
+sudo ./sitectl sync          # rebuild peers + MediaMTX from registry
+```
+
+JSON (for automation):
+
+```bash
+sudo ./sitectl add site003 --dvr-pass 'SECRET' --channels 4 --json
+sudo ./sitectl list --json
+```
+
+---
+
+## Files on the VPS
+
+| Path | Role |
+|---|---|
+| `/etc/relay/relay.env` | Global relay settings (edit once) |
+| `/etc/relay/sites.db` | **Registry** — single source of truth |
+| `/etc/relay/keys/` | Server + per-site WireGuard keys |
+| `/etc/relay/client-configs/<name>.conf` | Config to load on the box |
+| `/etc/relay/backups/` | Timestamped MediaMTX backups before regenerate |
+| `/root/mediamtx.yml` | Generated MediaMTX config (**do not edit by hand**) |
+| `/etc/wireguard/wg0.conf` | Persisted via `wg-quick save` |
+
+### Registry row format
+
+Pipe-separated (passwords may contain spaces):
+
+```
+name|tunnel_ip|dvr_user|dvr_pass|channels|public_key|created
+```
+
+Example:
+
+```
+site002|10.8.0.3|admin|secret|4|AbCd…=|2026-07-24T12:00:00+01:00
+```
+
+---
+
+## MediaMTX behaviour
+
+- Config is **fully regenerated** from the registry on every `add` / `remove` / `sync`.
+- Every path uses **TCP** RTSP (`pathDefaults.rtspTransport: tcp`) — required for the Android byte-relay.
+- Sources look like:
+
+  `rtsp://USER:PASS@10.8.0.N:8554/Streaming/Channels/<ch>02`
+
+  (sub-stream: camera `N` → stream id `N*100+2`).
+
+- `sourceOnDemand` + close after 10s — only pull while someone is watching.
+
+---
+
+## Relationship to older scripts
+
+| Script | When to use |
+|---|---|
+| [`setup-server.sh`](../scripts/setup-server.sh) | **Once** on a fresh VPS (packages, WG server, firewall, MediaMTX binary/service) |
+| [`sitectl`](../scripts/sitectl) | **Ongoing** site lifecycle (add/remove/list/sync) |
+| `/root/add-site.sh` (old) | Legacy helper generated by early setup — prefer `sitectl` going forward |
+
+---
+
+## You are done when
+
+- [ ] `/etc/relay/relay.env` has a real `RELAY_ENDPOINT` (not the example domain)
+- [ ] `sitectl list` runs without error
+- [ ] `sitectl add …` prints a valid WG config + camera URLs
+- [ ] Box imports config, handshake shows in `sitectl list`
+- [ ] Box relay is **LISTENING**; browser URL plays
+
+---
+
+## Next / related
+
+- Holistic map: [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md)
+- One-time VPS: [04 — VPS server setup](04-vps-server-setup.md)
+- Box WireGuard: [05 — WireGuard on phone / TV box](05-wireguard-on-box.md)
+- **Full usage + API integration:** [07 — sitectl usage and API](07-sitectl-usage-and-api.md)
+- **Day-to-day VPS ops:** [08 — Server operations](08-server-operations.md)
+- Technical detail: [technical/SITECTL.md](technical/SITECTL.md)

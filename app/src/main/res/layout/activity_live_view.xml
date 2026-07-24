@@ -15,16 +15,18 @@
         android:id="@+id/overlayTop"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginEnd="200dp"
         android:background="@drawable/bg_overlay_panel"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/overlayChannel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textAppearance="@style/TextAppearance.TruvendCam.Title"
-            android:textSize="18sp" />
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Caption" />
 
         <TextView
             android:id="@+id/overlayStatus"

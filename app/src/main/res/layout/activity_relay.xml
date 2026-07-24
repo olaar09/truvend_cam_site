@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/relay_title"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Title"
+            android:focusable="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/relay_subtitle"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+            android:focusable="false" />
+
+        <!-- Running toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/statusLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/relay_status_stopped"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Title"
+                android:textSize="28sp" />
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switchRelay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="true"
+                android:minHeight="56dp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/batteryWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@color/bg_panel"
+            android:padding="16dp"
+            android:text="@string/relay_battery_warning"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textColor="@color/error"
+            android:textSize="18sp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBatteryFix"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/relay_action_battery"
+            android:visibility="gone" />
+
+        <!-- Live relay details (socat equivalent) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="@string/relay_details_header"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@color/bg_panel"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/listenStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/socatLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="monospace"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/listenAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/forwardTarget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/deviceIps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="monospace"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/lastError"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textColor="@color/error"
+                android:textSize="16sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Stats -->
+        <TextView
+            android:id="@+id/activeConnections"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/totalConnections"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/uptimeText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/dvrReachable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="22sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/relay_tunnel_note"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+            android:textSize="14sp" />
+
+        <!-- Settings (DVR from Phase 1 config; listen port here) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:text="@string/relay_settings_header"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Title" />
+
+        <TextView
+            android:id="@+id/dvrAddress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="18sp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/hint_listen_port"
+            app:boxBackgroundMode="outline"
+            app:boxStrokeColor="@color/accent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/inputListenPort"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:text="8554"
+                android:textSize="18sp" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSaveListenPort"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/relay_action_save_port" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnChangeDvr"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/relay_action_change_dvr" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLogs"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/action_logs" />
+    </LinearLayout>
+</ScrollView>

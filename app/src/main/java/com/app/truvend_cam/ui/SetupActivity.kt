@@ -50,6 +50,9 @@ class SetupActivity : AppCompatActivity() {
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
+        binding.btnRelay.setOnClickListener {
+            startActivity(Intent(this, RelayActivity::class.java))
+        }
     }
 
     override fun onResume() {

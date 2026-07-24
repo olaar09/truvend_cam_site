@@ -183,7 +183,17 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:focusable="true"
+            android:nextFocusDown="@id/btnRelay"
             android:text="@string/action_logs" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRelay"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/action_relay" />
 
         <ProgressBar
             android:id="@+id/progress"
