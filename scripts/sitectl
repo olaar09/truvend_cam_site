@@ -1,0 +1,478 @@
+#!/bin/bash
+#
+# sitectl — provision, remove and list sites in one command.
+#
+# Handles all three layers together:
+#   1. WireGuard  — keys, tunnel IP allocation, peer
+#   2. Registry   — the single source of truth
+#   3. MediaMTX   — camera paths
+#
+# Subcommands map directly onto future API endpoints:
+#   sitectl add <name> ...   →  POST   /api/sites
+#   sitectl remove <name>    →  DELETE /api/sites/<name>
+#   sitectl list             →  GET    /api/sites
+#   sitectl show <name>      →  GET    /api/sites/<name>
+#   sitectl sync             →  POST   /api/sync
+#
+# Every subcommand accepts --json for machine-readable output,
+# so an HTTP wrapper stays thin.
+#
+# Usage:
+#   ./sitectl add site002 --dvr-user admin --dvr-pass secret --channels 4
+#   ./sitectl add site002 --dvr-user admin --dvr-pass secret --json
+#   ./sitectl remove site002
+#   ./sitectl list
+#   ./sitectl sync
+#
+# Docs:
+#   docs/06-sitectl.md
+#   docs/SYSTEM-ARCHITECTURE.md
+#
+
+set -euo pipefail
+
+# ===============================================================
+# Configuration
+# ===============================================================
+
+RELAY_DIR="/etc/relay"
+REGISTRY="${RELAY_DIR}/sites.db"
+KEYS_DIR="${RELAY_DIR}/keys"
+CLIENT_CONFIGS="${RELAY_DIR}/client-configs"
+BACKUP_DIR="${RELAY_DIR}/backups"
+ENV_FILE="${RELAY_DIR}/relay.env"
+
+WG_INTERFACE="wg0"
+WG_CONF="/etc/wireguard/wg0.conf"
+MTX_CONF="/root/mediamtx.yml"
+MTX_BIN="/root/mediamtx"
+
+JSON_OUTPUT=false
+
+# ===============================================================
+# Helpers
+# ===============================================================
+
+die() {
+    if $JSON_OUTPUT; then
+        printf '{"ok":false,"error":%s}\n' "$(json_string "$1")"
+    else
+        echo "ERROR: $1" >&2
+    fi
+    exit 1
+}
+
+say() { $JSON_OUTPUT || echo "$1"; }
+
+json_string() {
+    # minimal JSON string escaping
+    printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+}
+
+require_root() {
+    [ "$EUID" -eq 0 ] || die "must run as root"
+}
+
+# ===============================================================
+# First-run setup
+# ===============================================================
+
+bootstrap() {
+    mkdir -p "$RELAY_DIR" "$KEYS_DIR" "$CLIENT_CONFIGS" "$BACKUP_DIR"
+    chmod 700 "$RELAY_DIR" "$KEYS_DIR"
+
+    if [ ! -f "$ENV_FILE" ]; then
+        cat > "$ENV_FILE" <<'EOF'
+# Relay-wide settings. Edit once.
+
+# Public address boxes dial. Use a DOMAIN so the VPS can move
+# without reconfiguring every deployed box.
+RELAY_ENDPOINT="relay.example.com:51820"
+
+# Tunnel network
+WG_SUBNET="10.8.0"
+WG_CIDR="10.8.0.0/16"
+
+# Required — without it tunnels die when idle and revive on test
+KEEPALIVE=25
+
+# Public address viewers use for WebRTC
+WEBRTC_HOST="relay.example.com"
+WEBRTC_PORT=8889
+EOF
+        chmod 600 "$ENV_FILE"
+        die "created $ENV_FILE — set RELAY_ENDPOINT then run again"
+    fi
+
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+
+    [ "$RELAY_ENDPOINT" = "relay.example.com:51820" ] && \
+        die "set RELAY_ENDPOINT in $ENV_FILE first"
+
+    touch "$REGISTRY"
+    chmod 600 "$REGISTRY"
+
+    # Server keypair
+    if [ ! -f "${KEYS_DIR}/server_private.key" ]; then
+        if [ -f /etc/wireguard/keys/server_private.key ]; then
+            cp /etc/wireguard/keys/server_*.key "$KEYS_DIR/"
+        else
+            die "server keys not found — expected ${KEYS_DIR}/server_private.key"
+        fi
+    fi
+}
+
+# ===============================================================
+# Registry
+#
+# Pipe-separated so passwords may contain spaces:
+#   name|tunnel_ip|dvr_user|dvr_pass|channels|public_key|created
+# ===============================================================
+
+registry_get() {
+    grep "^$1|" "$REGISTRY" 2>/dev/null || true
+}
+
+registry_exists() {
+    [ -n "$(registry_get "$1")" ]
+}
+
+next_tunnel_ip() {
+    local highest
+    highest=$(cut -d'|' -f2 "$REGISTRY" | awk -F. '{print $4}' | sort -n | tail -1)
+    local next=$(( ${highest:-1} + 1 ))
+    [ "$next" -gt 254 ] && die "subnet ${WG_SUBNET}.x full"
+    echo "${WG_SUBNET}.${next}"
+}
+
+# ===============================================================
+# WireGuard
+# ===============================================================
+
+wg_add_peer() {
+    local pubkey=$1 ip=$2
+    wg set "$WG_INTERFACE" peer "$pubkey" allowed-ips "${ip}/32" \
+        || die "failed to add WireGuard peer"
+    wg-quick save "$WG_INTERFACE" || die "failed to persist wg0.conf"
+}
+
+wg_remove_peer() {
+    local pubkey=$1
+    wg set "$WG_INTERFACE" peer "$pubkey" remove 2>/dev/null || true
+    wg-quick save "$WG_INTERFACE" 2>/dev/null || true
+}
+
+# ===============================================================
+# MediaMTX — regenerate paths from the registry
+# ===============================================================
+
+mtx_regenerate() {
+    local tmp
+    tmp=$(mktemp)
+
+    cat > "$tmp" <<'HEADER'
+# GENERATED by sitectl — do not edit by hand.
+# Edit the registry and run: sitectl sync
+
+logLevel: info
+
+rtsp: yes
+rtspAddress: :8554
+
+rtmp: no
+hls: no
+srt: no
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+
+api: yes
+apiAddress: 127.0.0.1:9997
+
+###############################################
+# Applied to every path.
+#
+# rtspTransport MUST be tcp. The on-site relay is a plain TCP byte
+# copier and cannot carry RTP over separate UDP ports. With the
+# default of "automatic", MediaMTX tries UDP first and times out.
+###############################################
+pathDefaults:
+  rtspTransport: tcp
+  sourceOnDemand: yes
+  sourceOnDemandCloseAfter: 10s
+  sourceOnDemandStartTimeout: 15s
+
+paths:
+HEADER
+
+    local count=0
+    while IFS='|' read -r name ip user pass channels pubkey created; do
+        [ -z "${name:-}" ] && continue
+        [[ "$name" == \#* ]] && continue
+
+        channels=${channels:-4}
+        echo "" >> "$tmp"
+        echo "  # ${name} — ${ip}" >> "$tmp"
+
+        for ch in $(seq 1 "$channels"); do
+            local stream_id=$((ch * 100 + 2))    # sub-stream
+            cat >> "$tmp" <<EOF
+  ${name}_ch${ch}:
+    source: rtsp://${user}:${pass}@${ip}:8554/Streaming/Channels/${stream_id}
+EOF
+            count=$((count + 1))
+        done
+    done < "$REGISTRY"
+
+    [ -f "$MTX_CONF" ] && cp "$MTX_CONF" "${BACKUP_DIR}/mediamtx.yml.$(date +%Y%m%d-%H%M%S)"
+
+    # Write in place (same inode) so MediaMTX's file watcher hot-reloads.
+    # `mv` replaces the inode and the watcher silently misses the change.
+    cat "$tmp" > "$MTX_CONF"
+    rm -f "$tmp"
+    chmod 600 "$MTX_CONF"
+
+    echo "$count"
+}
+
+mtx_restart() {
+    if systemctl list-unit-files 2>/dev/null | grep -q "^mediamtx.service"; then
+        systemctl restart mediamtx
+    else
+        pkill mediamtx 2>/dev/null || true
+        sleep 1
+        nohup "$MTX_BIN" "$MTX_CONF" > /root/mediamtx.log 2>&1 &
+        sleep 1
+    fi
+}
+
+# ===============================================================
+# Subcommand: add
+# ===============================================================
+
+cmd_add() {
+    local name="" dvr_user="admin" dvr_pass="" channels=4
+
+    name=$1; shift
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --dvr-user) dvr_user=$2; shift 2 ;;
+            --dvr-pass) dvr_pass=$2; shift 2 ;;
+            --channels) channels=$2; shift 2 ;;
+            --json)     shift ;;
+            *) die "unknown option: $1" ;;
+        esac
+    done
+
+    [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] || die "invalid site name"
+    [ -n "$dvr_pass" ] || die "--dvr-pass is required"
+    [[ "$channels" =~ ^[0-9]+$ ]] || die "--channels must be a number"
+
+    registry_exists "$name" && die "site '$name' already exists"
+
+    wg show "$WG_INTERFACE" >/dev/null 2>&1 || die "$WG_INTERFACE is not up"
+
+    local ip; ip=$(next_tunnel_ip)
+
+    # Keys
+    wg genkey | tee "${KEYS_DIR}/${name}_private.key" | wg pubkey > "${KEYS_DIR}/${name}_public.key"
+    chmod 600 "${KEYS_DIR}/${name}_private.key"
+
+    local priv pub server_pub
+    priv=$(cat "${KEYS_DIR}/${name}_private.key")
+    pub=$(cat "${KEYS_DIR}/${name}_public.key")
+    server_pub=$(cat "${KEYS_DIR}/server_public.key")
+
+    # Peer — rollback the keys if this fails
+    if ! wg set "$WG_INTERFACE" peer "$pub" allowed-ips "${ip}/32" 2>/dev/null; then
+        rm -f "${KEYS_DIR}/${name}_"*.key
+        die "failed to add WireGuard peer"
+    fi
+    wg-quick save "$WG_INTERFACE" >/dev/null
+
+    # Registry
+    echo "${name}|${ip}|${dvr_user}|${dvr_pass}|${channels}|${pub}|$(date -Iseconds)" >> "$REGISTRY"
+
+    # Client config
+    local conf="${CLIENT_CONFIGS}/${name}.conf"
+    cat > "$conf" <<EOF
+[Interface]
+PrivateKey = ${priv}
+Address = ${ip}/32
+
+[Peer]
+PublicKey = ${server_pub}
+Endpoint = ${RELAY_ENDPOINT}
+AllowedIPs = ${WG_CIDR}
+PersistentKeepalive = ${KEEPALIVE}
+EOF
+    chmod 600 "$conf"
+
+    # Verify nothing is missing before handing it over
+    for field in PrivateKey Address PublicKey Endpoint AllowedIPs PersistentKeepalive; do
+        grep -q "^${field} = ." "$conf" || die "generated config missing ${field}"
+    done
+
+    # MediaMTX
+    local paths; paths=$(mtx_regenerate)
+    mtx_restart
+
+    # Output
+    if $JSON_OUTPUT; then
+        printf '{"ok":true,"site":%s,"tunnel_ip":%s,"channels":%s,"public_key":%s,"config":%s,"urls":[' \
+            "$(json_string "$name")" "$(json_string "$ip")" "$channels" \
+            "$(json_string "$pub")" "$(json_string "$(cat "$conf")")"
+        for ch in $(seq 1 "$channels"); do
+            [ "$ch" -gt 1 ] && printf ','
+            printf '%s' "$(json_string "http://${WEBRTC_HOST}:${WEBRTC_PORT}/${name}_ch${ch}")"
+        done
+        printf ']}\n'
+    else
+        echo
+        echo "=============================================="
+        echo " Site added: ${name}"
+        echo " Tunnel IP:  ${ip}"
+        echo " Channels:   ${channels}"
+        echo " MediaMTX paths now configured: ${paths}"
+        echo "=============================================="
+        echo
+        cat "$conf"
+        echo
+        echo "Camera URLs:"
+        for ch in $(seq 1 "$channels"); do
+            echo "  http://${WEBRTC_HOST}:${WEBRTC_PORT}/${name}_ch${ch}"
+        done
+        echo
+        if command -v qrencode >/dev/null; then
+            echo "Scan into the WireGuard app:"
+            echo
+            qrencode -t ansiutf8 < "$conf"
+        fi
+        echo
+        echo "This config contains a private key. Do not share it."
+    fi
+}
+
+# ===============================================================
+# Subcommand: remove
+# ===============================================================
+
+cmd_remove() {
+    local name=$1
+    registry_exists "$name" || die "site '$name' not found"
+
+    local pubkey
+    pubkey=$(registry_get "$name" | cut -d'|' -f6)
+
+    wg_remove_peer "$pubkey"
+
+    grep -v "^${name}|" "$REGISTRY" > "${REGISTRY}.tmp"
+    mv "${REGISTRY}.tmp" "$REGISTRY"
+    chmod 600 "$REGISTRY"
+
+    rm -f "${KEYS_DIR}/${name}_"*.key "${CLIENT_CONFIGS}/${name}.conf"
+
+    mtx_regenerate > /dev/null
+    mtx_restart
+
+    if $JSON_OUTPUT; then
+        printf '{"ok":true,"removed":%s}\n' "$(json_string "$name")"
+    else
+        echo "Removed ${name}. Its tunnel IP is not reused."
+    fi
+}
+
+# ===============================================================
+# Subcommand: list
+# ===============================================================
+
+cmd_list() {
+    if $JSON_OUTPUT; then
+        printf '{"ok":true,"sites":['
+        local first=true
+        while IFS='|' read -r name ip user pass channels pubkey created; do
+            [ -z "${name:-}" ] && continue
+            $first || printf ','
+            first=false
+            local hs
+            hs=$(wg show "$WG_INTERFACE" latest-handshakes 2>/dev/null \
+                 | grep "$pubkey" | awk '{print $2}' || echo 0)
+            printf '{"name":%s,"tunnel_ip":%s,"channels":%s,"last_handshake":%s}' \
+                "$(json_string "$name")" "$(json_string "$ip")" "$channels" "${hs:-0}"
+        done < "$REGISTRY"
+        printf ']}\n'
+    else
+        printf "%-12s %-12s %-9s %s\n" "SITE" "TUNNEL IP" "CHANNELS" "LAST HANDSHAKE"
+        while IFS='|' read -r name ip user pass channels pubkey created; do
+            [ -z "${name:-}" ] && continue
+            local hs age
+            hs=$(wg show "$WG_INTERFACE" latest-handshakes 2>/dev/null \
+                 | grep "$pubkey" | awk '{print $2}' || echo 0)
+            if [ "${hs:-0}" -eq 0 ]; then
+                age="never"
+            else
+                age="$(( $(date +%s) - hs ))s ago"
+            fi
+            printf "%-12s %-12s %-9s %s\n" "$name" "$ip" "$channels" "$age"
+        done < "$REGISTRY"
+    fi
+}
+
+# ===============================================================
+# Subcommand: sync
+#
+# Rebuild MediaMTX and WireGuard peers from the registry.
+# Use after editing the registry by hand, or to repair drift.
+# ===============================================================
+
+cmd_sync() {
+    while IFS='|' read -r name ip user pass channels pubkey created; do
+        [ -z "${name:-}" ] && continue
+        wg set "$WG_INTERFACE" peer "$pubkey" allowed-ips "${ip}/32" 2>/dev/null || true
+    done < "$REGISTRY"
+    wg-quick save "$WG_INTERFACE" >/dev/null 2>&1 || true
+
+    local paths; paths=$(mtx_regenerate)
+    mtx_restart
+
+    if $JSON_OUTPUT; then
+        printf '{"ok":true,"paths":%s}\n' "$paths"
+    else
+        echo "Synced. ${paths} MediaMTX paths, peers reconciled."
+    fi
+}
+
+# ===============================================================
+# Entry point
+# ===============================================================
+
+for arg in "$@"; do
+    [ "$arg" = "--json" ] && JSON_OUTPUT=true
+done
+
+require_root
+bootstrap
+
+case "${1:-}" in
+    add)     shift; [ $# -ge 1 ] || die "usage: sitectl add <name> --dvr-pass <pass> [--dvr-user admin] [--channels 4]"; cmd_add "$@" ;;
+    remove)  shift; [ $# -ge 1 ] || die "usage: sitectl remove <name>"; cmd_remove "$1" ;;
+    list)    cmd_list ;;
+    show)    shift; registry_get "$1" || die "not found" ;;
+    sync)    cmd_sync ;;
+    *)
+        cat <<'USAGE'
+sitectl — provision sites end to end
+
+  sitectl add <name> --dvr-pass <pass> [--dvr-user admin] [--channels 4]
+  sitectl remove <name>
+  sitectl list
+  sitectl show <name>
+  sitectl sync
+
+Add --json to any command for machine-readable output.
+USAGE
+        exit 1
+        ;;
+esac

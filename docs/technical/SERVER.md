@@ -69,7 +69,9 @@ AllowedIPs = 10.8.0.N/32
 ```
 
 `AllowedIPs` on the **server** is per-peer `/32` (only that client’s tunnel address).  
-On the **client** config, `AllowedIPs = 10.8.0.0/24` so the box can reach the server and other tunnel hosts, without capturing all Internet traffic (split tunnel). `PersistentKeepalive = 25` keeps NAT mappings alive from site networks.
+On the **client** config, `AllowedIPs = 10.8.0.0/16` (`WG_CIDR` from `relay.env`) so the box can reach the server and other tunnel hosts, without capturing all Internet traffic (split tunnel). `PersistentKeepalive = 25` keeps NAT mappings alive from site networks.
+
+> Prefer **`sitectl`** for day-to-day provisioning. The `add-site.sh` section below documents the legacy helper from early `setup-server.sh` runs. See [08 — Server operations](../08-server-operations.md).
 
 ### MediaMTX base config (critical knobs)
 
@@ -156,7 +158,7 @@ http://<PUBLIC_IP>:8889/<site>_ch<n>
 
 Do not run Termux `socat` on 8554 while the app relay listens.
 
-When WireGuard is later embedded in-app, outbound DVR sockets need `VpnService.protect` (hook already on `ForwarderServer`). With standalone WG + `AllowedIPs=10.8.0.0/24`, LAN DVR traffic is unaffected.
+When WireGuard is later embedded in-app, outbound DVR sockets need `VpnService.protect` (hook already on `ForwarderServer`). With standalone WG + `AllowedIPs=10.8.0.0/16`, LAN DVR traffic is unaffected.
 
 ---
 
@@ -185,7 +187,7 @@ Handshake age in `wg show` should be seconds/minutes while the box is online. If
 - Site confs under `/root/site-configs/` contain client private keys — treat like passwords.
 - Rotating a site: remove peer from `wg0.conf`, free IP in `allocated-ips.txt`, remove MediaMTX paths, re-run add (or manual equivalent).
 - Upgrading MediaMTX: bump `MEDIAMTX_VERSION`, replace binary carefully; preserve `mediamtx.yml` camera paths.
-- Re-running `setup-server.sh` is safe for packages/services but will not rebuild peers; use `add-site.sh` for sites.
+- Re-running `setup-server.sh` is safe for packages/services but will not rebuild peers; use **`sitectl`** for sites.
 
 ---
 

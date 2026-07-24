@@ -10,7 +10,7 @@ Site NATs and CGNAT block unsolicited inbound connections. An outbound WireGuard
 
 ---
 
-## 2. Client config semantics (from `add-site.sh`)
+## 2. Client config semantics (from `sitectl`)
 
 ```ini
 [Interface]
@@ -19,15 +19,15 @@ Address    = 10.8.0.N/32
 
 [Peer]
 PublicKey           = <server public>
-Endpoint            = <vps-public-ip>:51820
-AllowedIPs          = 10.8.0.0/24
+Endpoint            = <relay-host>:51820
+AllowedIPs          = 10.8.0.0/16
 PersistentKeepalive = 25
 ```
 
 | Field | Effect |
 |---|---|
 | `Address /32` | This peer’s tunnel identity |
-| `AllowedIPs = 10.8.0.0/24` | Cryptokey routing: only packets to the WG subnet use the tunnel (split tunnel) |
+| `AllowedIPs = 10.8.0.0/16` | Cryptokey routing: only packets to the WG subnet use the tunnel (split tunnel). Matches `WG_CIDR` in `relay.env` |
 | `AllowedIPs = 0.0.0.0/0` | Full-tunnel — **breaks LAN DVR access** on typical installs |
 | `PersistentKeepalive = 25` | Keep NAT mapping alive through site routers |
 | Server peer `AllowedIPs = 10.8.0.N/32` | Server may send to this client only |

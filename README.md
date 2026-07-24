@@ -13,12 +13,17 @@
 | [docs/01-local-live-view.md](docs/01-local-live-view.md) | Phase 1 on-site video |
 | [docs/02-rtsp-relay.md](docs/02-rtsp-relay.md) | In-app relay (replaces Termux socat) |
 | [docs/03-remote-tunnel.md](docs/03-remote-tunnel.md) | WireGuard + VPS / MediaMTX |
-| [docs/04-vps-server-setup.md](docs/04-vps-server-setup.md) | One-time VPS setup script + add-site |
+| [docs/04-vps-server-setup.md](docs/04-vps-server-setup.md) | One-time VPS setup script |
 | [docs/05-wireguard-on-box.md](docs/05-wireguard-on-box.md) | WireGuard on phone / TV box |
+| [docs/06-sitectl.md](docs/06-sitectl.md) | Provision sites with `sitectl` |
+| [docs/07-sitectl-usage-and-api.md](docs/07-sitectl-usage-and-api.md) | Full `sitectl` usage + future API integration |
+| [docs/08-server-operations.md](docs/08-server-operations.md) | VPS day-to-day ops, diagnostics, backup |
 | [docs/technical/REFERENCE.md](docs/technical/REFERENCE.md) | Deep technical (Android / overall) |
 | [docs/technical/SERVER.md](docs/technical/SERVER.md) | Deep technical (WireGuard / MediaMTX server) |
 | [docs/technical/WIREGUARD-CLIENT.md](docs/technical/WIREGUARD-CLIENT.md) | Deep technical (WireGuard on the box) |
+| [docs/technical/SITECTL.md](docs/technical/SITECTL.md) | Deep technical (`sitectl` / registry) |
 | [scripts/setup-server.sh](scripts/setup-server.sh) | VPS one-time installer |
+| [scripts/sitectl](scripts/sitectl) | Site add / remove / list / sync |
 
 The section below is the original **Phase 1 as-built** archive (lessons learned, rejected approaches). Prefer `docs/SYSTEM-ARCHITECTURE.md` for day-to-day understanding.
 

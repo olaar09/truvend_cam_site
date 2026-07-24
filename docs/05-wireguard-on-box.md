@@ -32,15 +32,15 @@ After this step, the server can reach the box as if they were in the same room.
 
 ## Before you start
 
-You need three things from the server. Running `./add-site.sh site001 192.168.0.60` produces all of them:
+You need three things from the server. Running `sitectl add site001 --dvr-pass '…'` produces all of them (also under `/etc/relay/client-configs/`):
 
 | Item | Looks like | Where from |
 |---|---|---|
-| Client private key | `aFq3...=` (44 characters) | `/root/site-configs/site001.conf` |
+| Client private key | `aFq3...=` (44 characters) | `/etc/relay/client-configs/site001.conf` |
 | Server public key | `lBHF...=` (44 characters) | Same file |
-| Server address and port | `102.89.69.47:51820` | Same file |
+| Server address and port | `relay.example.com:51820` | Same file (`Endpoint`) |
 
-The script also prints a **QR code**. If you can scan it, skip most of this guide.
+The command also prints a **QR code**. If you can scan it, skip most of this guide.
 
 Use the real values from **your** `site-configs` file — examples below are illustrative only.
 
@@ -85,7 +85,7 @@ Open WireGuard → **+** → **Create from scratch**.
 | Name | `camera-relay` — any name |
 | Private key | Paste from the config file |
 | Public key | Fills in automatically. Leave it |
-| Addresses | `10.8.0.2/32` — **this box’s** tunnel address from add-site |
+| Addresses | `10.8.0.2/32` — **this box’s** tunnel address from `sitectl` |
 | Listen port | Leave blank |
 | DNS servers | Leave blank |
 | MTU | Leave blank |
@@ -97,14 +97,14 @@ Open WireGuard → **+** → **Create from scratch**.
 | Public key | The **server’s** public key |
 | Pre-shared key | Leave blank |
 | Endpoint | e.g. `102.89.69.47:51820` — server public IP and port |
-| Allowed IPs | `10.8.0.0/24` |
+| Allowed IPs | `10.8.0.0/16` |
 | Persistent keepalive | `25` |
 
 Save.
 
 > ### The two settings people get wrong
 >
-> **Allowed IPs must be `10.8.0.0/24`, not `0.0.0.0/0`.**
+> **Allowed IPs must be `10.8.0.0/16`, not `0.0.0.0/0`.**
 >
 > This says: *only send tunnel-network traffic through the tunnel*. Everything else — normal internet, and crucially the DVR on the LAN — goes out normally.
 >
@@ -189,7 +189,7 @@ peer: …
   transfer: … received, … sent
 ```
 
-Check that **allowed ips** matches the address you gave the box. A missing peer means the key was never added on the server side (`add-site.sh`).
+Check that **allowed ips** matches the address you gave the box. A missing peer means the key was never added on the server side (`sitectl add`).
 
 ### Test 3 — Can the server reach the box?
 
@@ -231,7 +231,7 @@ That is the full chain working: server → tunnel → box → DVR.
 | No handshake, ever | Wrong endpoint address, or UDP port blocked | Check the IP, and `ufw allow 51820/udp` (plus cloud firewall) |
 | No handshake, ever | Keys mismatched | The box’s *private* key pairs with the *public* key on the server. Easy to swap |
 | Handshake works, ping fails | Allowed IPs wrong on the server | Server needs `AllowedIPs = 10.8.0.2/32` for that peer |
-| Tunnel up, DVR unreachable from the box | Allowed IPs is `0.0.0.0/0` on the box | Change to `10.8.0.0/24` |
+| Tunnel up, DVR unreachable from the box | Allowed IPs is `0.0.0.0/0` on the box | Change to `10.8.0.0/16` |
 | Works, then dies after minutes | Missing keepalive | Set Persistent keepalive to 25 |
 | Works, then dies overnight | Battery optimisation | Set WireGuard (and Truvend Cam) to Unrestricted |
 | Dies after reboot | Always-on VPN not enabled | Enable it, or use ADB |
@@ -258,7 +258,7 @@ wg syncconf wg0 <(wg-quick strip wg0)
 
 - [ ] WireGuard installed
 - [ ] Config entered, private key on the box, public key on the server
-- [ ] Allowed IPs is `10.8.0.0/24` — **not** `0.0.0.0/0`
+- [ ] Allowed IPs is `10.8.0.0/16` — **not** `0.0.0.0/0`
 - [ ] Persistent keepalive set to 25
 - [ ] Permission prompt accepted
 - [ ] Handshake recent in the app
@@ -286,5 +286,7 @@ That last one is the real test. Everything else can pass while the site still fa
 
 - ← [04 — VPS server setup](04-vps-server-setup.md)
 - → [02 — RTSP relay](02-rtsp-relay.md) (turn this on after the tunnel)
+- Provision sites: [06 — sitectl](06-sitectl.md)
+- VPS ops: [08 — Server operations](08-server-operations.md)
 - Technical notes: [WireGuard client technical](technical/WIREGUARD-CLIENT.md)
 - Docs home: [README](README.md)

@@ -77,7 +77,7 @@ Hikvision devices are heavily scanned on the public internet. An outbound WireGu
 
 ### Forward note (for when WireGuard is embedded)
 
-When this app becomes the VPN provider, outbound sockets to the DVR must call `VpnService.protect(socket)` so LAN traffic to the DVR does not loop into the VPN. The relay already has a `prepareDvrSocket` hook for that. **Not needed** while WireGuard is the standalone app with a narrow `AllowedIPs` (e.g. `10.8.0.0/24`).
+When this app becomes the VPN provider, outbound sockets to the DVR must call `VpnService.protect(socket)` so LAN traffic to the DVR does not loop into the VPN. The relay already has a `prepareDvrSocket` hook for that. **Not needed** while WireGuard is the standalone app with a narrow `AllowedIPs` (e.g. `10.8.0.0/16`).
 
 ---
 

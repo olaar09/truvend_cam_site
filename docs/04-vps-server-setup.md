@@ -233,15 +233,22 @@ Configs to know:
 |---|---|
 | Cloud firewall blocks UDP 51820 | WireGuard never connects |
 | Forgot Android relay / still using socat conflict | MediaMTX cannot pull `:8554` |
-| `AllowedIPs` too wide on the phone | Can break LAN/DVR routing — script uses `10.8.0.0/24` only (good) |
+| `AllowedIPs` too wide on the phone | Can break LAN/DVR routing — client must use `10.8.0.0/16` (or `/24`), **not** `0.0.0.0/0` |
 | Expecting public `http://VPS:8554` | Port is intentionally closed; use `:8889` WebRTC |
 | Wrong DVR password in add-site | Paths added but streams fail — check `journalctl -u mediamtx` |
 | Re-run setup thinking it resets everything | Script **keeps** existing WG keys and `wg0.conf` / MediaMTX config if present |
 
 ---
 
+## Relationship to `sitectl`
+
+After the one-time `setup-server.sh`, **provision new sites with [`sitectl`](06-sitectl.md)** (`scripts/sitectl`). It owns WireGuard peers, `/etc/relay/sites.db`, and MediaMTX regeneration together.
+
+The `/root/add-site.sh` helper created by early versions of this setup script is **legacy** — prefer `sitectl` for new deployments.
+
 ## Next / related
 
+- Provision sites: [06 — sitectl](06-sitectl.md)
 - On-site relay: [02 — RTSP relay](02-rtsp-relay.md)
 - How remote pieces fit: [03 — Remote path](03-remote-tunnel.md)
 - Install WireGuard on the box: [05 — WireGuard on phone / TV box](05-wireguard-on-box.md)
