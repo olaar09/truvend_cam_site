@@ -131,6 +131,20 @@ class WifiNetworkBinder(context: Context) {
         }
     }
 
+    /** Non-blocking bind for services that cannot wait on a coroutine. */
+    fun bindToLanSync(): Network? {
+        val network = findLanNetwork() ?: return boundWifi.get()
+        return try {
+            connectivity.bindProcessToNetwork(network)
+            boundWifi.set(network)
+            AppLog.i(TAG, "Sync-bound to LAN network")
+            network
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Sync bind to LAN failed", e)
+            null
+        }
+    }
+
     private fun findLanNetwork(): Network? {
         for (network in connectivity.allNetworks) {
             val caps = connectivity.getNetworkCapabilities(network) ?: continue

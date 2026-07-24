@@ -56,6 +56,34 @@ class ConfigRepository(context: Context) {
         AppLog.i("ConfigRepository", "Saved config for host=${config.host} verified=${config.verified}")
     }
 
+    /** Relay settings share the same encrypted store; DVR host/port come from [load]. */
+    fun loadRelaySettings(): RelaySettings {
+        return RelaySettings(
+            listenPort = prefs.getInt(KEY_LISTEN_PORT, RelaySettings.DEFAULT_LISTEN_PORT),
+            enabled = prefs.getBoolean(KEY_RELAY_ENABLED, false),
+        )
+    }
+
+    fun saveRelaySettings(settings: RelaySettings) {
+        prefs.edit()
+            .putInt(KEY_LISTEN_PORT, settings.listenPort)
+            .putBoolean(KEY_RELAY_ENABLED, settings.enabled)
+            .apply()
+        AppLog.i(
+            "ConfigRepository",
+            "Saved relay settings listenPort=${settings.listenPort} enabled=${settings.enabled}",
+        )
+    }
+
+    fun setRelayEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_RELAY_ENABLED, enabled).apply()
+    }
+
+    /** True when DVR is configured and the relay should auto-start (e.g. after reboot). */
+    fun isRelayConfigured(): Boolean {
+        return hasWorkingConfig() && loadRelaySettings().enabled
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }
@@ -75,5 +103,7 @@ class ConfigRepository(context: Context) {
         private const val KEY_PASSWORD = "password"
         private const val KEY_STREAM_TYPE = "stream_type"
         private const val KEY_VERIFIED = "verified"
+        private const val KEY_LISTEN_PORT = "listen_port"
+        private const val KEY_RELAY_ENABLED = "relay_enabled"
     }
 }
