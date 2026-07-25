@@ -4,6 +4,9 @@
     <string name="home_title">Home</string>
     <string name="setup_title">DVR settings</string>
     <string name="action_live_view">Live view</string>
+    <string name="home_preview_title">Live preview</string>
+    <string name="action_hide_preview">Hide</string>
+    <string name="action_show_preview">Show</string>
     <string name="action_save">Save</string>
     <string name="action_toggle_grid">Grid</string>
     <string name="action_toggle_single">Single</string>

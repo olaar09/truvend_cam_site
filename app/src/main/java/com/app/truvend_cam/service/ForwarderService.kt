@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -33,6 +34,7 @@ class ForwarderService : Service() {
 
     private var forwarder: ForwarderServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val handler = Handler(Looper.getMainLooper())
     private var startedAtElapsed: Long = 0L
 
@@ -81,7 +83,13 @@ class ForwarderService : Service() {
         startedAtElapsed = SystemClock.elapsedRealtime()
 
         val wifiBinder = app.wifiBinder
+        // Keep LAN binding alive for the service lifetime. Without a callback,
+        // DVR hops often fail until Live view has bound the process once.
         wifiBinder.bindToLanSync()
+        networkCallback = wifiBinder.registerNetworkRegain {
+            AppLog.i(TAG, "LAN network regained — rebinding process")
+            wifiBinder.bindToLanSync()
+        }
 
         forwarder = ForwarderServer(
             dvrHost = config.host,
@@ -90,9 +98,8 @@ class ForwarderService : Service() {
             prepareDvrSocket = { socket: Socket ->
                 // Bind outbound DVR socket to LAN when available (cellular dual-stack).
                 // Later: also call VpnService.protect(socket) here.
-                wifiBinder.getBoundNetwork()?.let { network ->
-                    runCatching { wifiBinder.bindSocket(network, socket) }
-                }
+                val network = wifiBinder.getBoundNetwork() ?: wifiBinder.bindToLanSync()
+                network?.let { runCatching { wifiBinder.bindSocket(it, socket) } }
             },
         ).also { it.start() }
 
@@ -122,12 +129,19 @@ class ForwarderService : Service() {
         handler.removeCallbacks(notificationUpdater)
         val app = application as TruvendApp
         app.configRepository.setRelayEnabled(false)
+        releaseNetworkCallback()
         runCatching { forwarder?.stop() }
         forwarder = null
         instance = null
         releaseWakeLock()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun releaseNetworkCallback() {
+        val app = application as? TruvendApp ?: return
+        networkCallback?.let { app.wifiBinder.unregisterCallback(it) }
+        networkCallback = null
     }
 
     private fun acquireWakeLock() {
@@ -151,6 +165,7 @@ class ForwarderService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(notificationUpdater)
+        releaseNetworkCallback()
         runCatching { forwarder?.stop() }
         forwarder = null
         if (instance === this) instance = null

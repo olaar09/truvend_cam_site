@@ -1,10 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark"
-    android:fillViewport="true">
+    android:orientation="vertical">
+
+    <!-- Home live preview — collapsible; video kept outside ScrollView for SurfaceView -->
+    <LinearLayout
+        android:id="@+id/homePreviewSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/home_preview_title"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+                android:textSize="15sp"
+                android:focusable="false" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTogglePreview"
+                style="@style/Widget.TruvendCam.Button.Secondary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:focusable="true"
+                android:minWidth="88dp"
+                android:minHeight="48dp"
+                android:text="@string/action_hide_preview" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/homePreview"
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:background="@color/black">
+
+            <SurfaceView
+                android:id="@+id/homeVideoSurface"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:background="@drawable/bg_overlay_panel"
+                android:orientation="vertical"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:id="@+id/homePreviewChannel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/homePreviewStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+                    android:textColor="@color/accent"
+                    android:textSize="13sp" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -248,4 +332,5 @@
             android:layout_marginTop="8dp"
             android:nestedScrollingEnabled="false" />
     </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>
