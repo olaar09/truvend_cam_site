@@ -15,16 +15,36 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/setup_title"
+            android:text="@string/home_title"
             android:textAppearance="@style/TextAppearance.TruvendCam.Title"
             android:focusable="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLiveView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:enabled="false"
+            android:focusable="true"
+            android:nextFocusDown="@id/inputHost"
+            android:text="@string/action_live_view"
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/networkHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="20dp"
             android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+            android:focusable="false" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/setup_title"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Title"
+            android:textSize="18sp"
             android:focusable="false" />
 
         <com.google.android.material.textfield.TextInputLayout
@@ -174,7 +194,7 @@
             android:enabled="false"
             android:focusable="true"
             android:nextFocusDown="@id/btnLogs"
-            android:text="@string/action_save_open" />
+            android:text="@string/action_save" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLogs"

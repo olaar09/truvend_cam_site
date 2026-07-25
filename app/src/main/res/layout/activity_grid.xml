@@ -1,39 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark"
-    android:orientation="vertical"
     android:keepScreenOn="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="8dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/grid_title"
-            android:textAppearance="@style/TextAppearance.TruvendCam.Title" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnBackLive"
-            style="@style/Widget.TruvendCam.Button.Secondary"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:focusable="true"
-            android:text="Live" />
-    </LinearLayout>
 
     <GridLayout
         android:id="@+id/grid"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:alignmentMode="alignBounds"
         android:columnCount="2"
         android:rowCount="2"
@@ -79,4 +54,61 @@
             android:layout_column="1"
             android:layout_columnWeight="1" />
     </GridLayout>
-</LinearLayout>
+
+    <!-- Top app bar: Home left, Single right -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="@drawable/bg_overlay_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHome"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true"
+            android:minWidth="88dp"
+            android:minHeight="48dp"
+            android:text="@string/action_home" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnViewToggle"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true"
+            android:minWidth="88dp"
+            android:minHeight="48dp"
+            android:text="@string/action_toggle_single" />
+    </LinearLayout>
+
+    <!-- Title label below app bar, overlaid on grid (auto-hides like live view) -->
+    <TextView
+        android:id="@+id/overlayTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="72dp"
+        android:background="@drawable/bg_overlay_panel"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:text="@string/grid_title"
+        android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+        android:textSize="15sp" />
+</FrameLayout>

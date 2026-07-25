@@ -90,14 +90,10 @@ class LiveViewActivity : AppCompatActivity() {
         val startCamera = intent.getIntExtra(EXTRA_CAMERA_ID, -1)
 
         binding.btnRetry.setOnClickListener { playCurrent() }
-        binding.btnGrid.setOnClickListener {
+        binding.btnHome.setOnClickListener { goHome() }
+        binding.btnViewToggle.setOnClickListener {
             startActivity(Intent(this, GridActivity::class.java))
-        }
-        binding.btnSettings.setOnClickListener {
-            startActivity(
-                Intent(this, SetupActivity::class.java)
-                    .putExtra(SetupActivity.EXTRA_FORCE_SETUP, true),
-            )
+            finish()
         }
 
         binding.root.setOnTouchListener { _, event ->
@@ -352,12 +348,20 @@ class LiveViewActivity : AppCompatActivity() {
         handler.postDelayed(hideOverlayRunnable, OVERLAY_HIDE_MS)
     }
 
+    private fun goHome() {
+        startActivity(
+            Intent(this, SetupActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
+        finish()
+    }
+
     private fun setOverlayVisible(visible: Boolean) {
         overlayVisible = visible
         val v = if (visible) View.VISIBLE else View.GONE
+        // App bar stays; channel/status label + strip can fade.
         binding.overlayTop.visibility = v
         binding.channelStrip.visibility = v
-        binding.quickActions.visibility = v
     }
 
     private fun openChannelPicker() {

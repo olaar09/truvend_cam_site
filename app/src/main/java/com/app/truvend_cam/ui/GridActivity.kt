@@ -1,8 +1,13 @@
 package com.app.truvend_cam.ui
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
@@ -31,18 +36,38 @@ class GridActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGridBinding
     private val app get() = application as TruvendApp
+    private val handler = Handler(Looper.getMainLooper())
 
     private val tiles = mutableListOf<TileController>()
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
+    private val hideOverlayRunnable = Runnable { setOverlayVisible(false) }
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityGridBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        binding.btnBackLive.setOnClickListener {
+        binding.btnHome.setOnClickListener {
+            startActivity(
+                Intent(this, SetupActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            )
             finish()
+        }
+        binding.btnViewToggle.setOnClickListener {
+            startActivity(
+                Intent(this, LiveViewActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            )
+            finish()
+        }
+
+        binding.root.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) bumpOverlay()
+            false
         }
 
         lifecycleScope.launch {
@@ -60,15 +85,22 @@ class GridActivity : AppCompatActivity() {
                 val controller = TileController(tileBinding, channel)
                 tiles += controller
                 if (channel != null) {
-                    tileBinding.root.setOnClickListener { promote(channel.videoInputChannelId) }
+                    tileBinding.root.setOnClickListener {
+                        bumpOverlay()
+                        promote(channel.videoInputChannelId)
+                    }
                     tileBinding.root.setOnFocusChangeListener { _, hasFocus ->
-                        if (hasFocus) tileBinding.root.isSelected = true
+                        if (hasFocus) {
+                            tileBinding.root.isSelected = true
+                            bumpOverlay()
+                        }
                     }
                     tileBinding.root.setOnKeyListener { _, keyCode, event ->
-                        if (event.action == android.view.KeyEvent.ACTION_UP &&
-                            (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                                keyCode == android.view.KeyEvent.KEYCODE_ENTER)
+                        if (event.action == KeyEvent.ACTION_UP &&
+                            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                                keyCode == KeyEvent.KEYCODE_ENTER)
                         ) {
+                            bumpOverlay()
                             promote(channel.videoInputChannelId)
                             true
                         } else false
@@ -78,6 +110,7 @@ class GridActivity : AppCompatActivity() {
                 }
             }
             tileRoots.firstOrNull()?.root?.requestFocus()
+            bumpOverlay()
         }
     }
 
@@ -94,6 +127,26 @@ class GridActivity : AppCompatActivity() {
         networkCallback = null
         tiles.forEach { it.release() }
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(hideOverlayRunnable)
+        super.onDestroy()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        bumpOverlay()
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun bumpOverlay() {
+        setOverlayVisible(true)
+        handler.removeCallbacks(hideOverlayRunnable)
+        handler.postDelayed(hideOverlayRunnable, OVERLAY_HIDE_MS)
+    }
+
+    private fun setOverlayVisible(visible: Boolean) {
+        binding.overlayTitle.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     private suspend fun ensureChannels() {
@@ -167,5 +220,6 @@ class GridActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "GridActivity"
         private const val MAX_TILES = 4
+        private const val OVERLAY_HIDE_MS = 4_000L
     }
 }

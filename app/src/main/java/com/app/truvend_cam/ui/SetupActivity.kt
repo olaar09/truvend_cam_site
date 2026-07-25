@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.app.truvend_cam.R
 import com.app.truvend_cam.TruvendApp
 import com.app.truvend_cam.data.DvrConfig
 import com.app.truvend_cam.data.StreamType
@@ -18,6 +19,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Home screen: DVR settings, relay/logs entry points, and Live view when configured.
+ */
 class SetupActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySetupBinding
@@ -26,14 +30,6 @@ class SetupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        if (intent?.getBooleanExtra(EXTRA_FORCE_SETUP, false) != true &&
-            app.configRepository.hasWorkingConfig()
-        ) {
-            startActivity(Intent(this, LiveViewActivity::class.java))
-            finish()
-            return
-        }
 
         binding = ActivitySetupBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -44,9 +40,11 @@ class SetupActivity : AppCompatActivity() {
 
         prefill()
         updateNetworkHint()
+        updateLiveViewButton()
 
+        binding.btnLiveView.setOnClickListener { openLiveView() }
         binding.btnTest.setOnClickListener { testConnection() }
-        binding.btnSave.setOnClickListener { saveAndOpen() }
+        binding.btnSave.setOnClickListener { saveConfig() }
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
@@ -58,10 +56,43 @@ class SetupActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateNetworkHint()
+        updateLiveViewButton()
+    }
+
+    private fun updateLiveViewButton() {
+        val ready = app.configRepository.hasWorkingConfig() ||
+            (app.activeConfig?.verified == true && app.cachedChannels.isNotEmpty())
+        binding.btnLiveView.isEnabled = ready
+    }
+
+    private fun openLiveView() {
+        if (!binding.btnLiveView.isEnabled) {
+            Toast.makeText(this, "Test and save the DVR connection first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Persist current form if already verified so stream type changes stick.
+        val stream = if (binding.radioMain.isChecked) StreamType.MAIN else StreamType.SUB
+        app.activeConfig?.let { cfg ->
+            if (cfg.verified) {
+                val toSave = cfg.copy(defaultStreamType = stream, verified = true)
+                app.configRepository.save(toSave)
+                app.activeConfig = toSave
+            }
+        }
+        startActivity(Intent(this, LiveViewActivity::class.java))
     }
 
     private fun prefill() {
-        val cfg = app.configRepository.load() ?: return
+        val cfg = app.configRepository.load()
+        if (cfg == null) {
+            binding.inputHost.setText(R.string.default_dvr_host)
+            binding.inputHttpPort.setText("80")
+            binding.inputRtspPort.setText("554")
+            binding.inputUsername.setText(R.string.default_dvr_username)
+            binding.inputPassword.setText(R.string.default_dvr_password)
+            binding.radioSub.isChecked = true
+            return
+        }
         binding.inputHost.setText(cfg.host)
         binding.inputHttpPort.setText(cfg.httpPort.toString())
         binding.inputRtspPort.setText(cfg.rtspPort.toString())
@@ -71,6 +102,13 @@ class SetupActivity : AppCompatActivity() {
             binding.radioMain.isChecked = true
         } else {
             binding.radioSub.isChecked = true
+        }
+        if (cfg.verified) {
+            binding.btnSave.isEnabled = true
+            if (app.cachedChannels.isNotEmpty()) {
+                adapter.submit(app.cachedChannels)
+                binding.channelsHeader.visibility = View.VISIBLE
+            }
         }
     }
 
@@ -142,6 +180,7 @@ class SetupActivity : AppCompatActivity() {
                     adapter.submit(result.value)
                     binding.channelsHeader.visibility = View.VISIBLE
                     binding.btnSave.isEnabled = true
+                    updateLiveViewButton()
                     binding.statusText.setTextColor(getColor(com.app.truvend_cam.R.color.accent))
                     binding.statusText.text =
                         "Connected. Found ${result.value.size} streaming channels."
@@ -151,6 +190,7 @@ class SetupActivity : AppCompatActivity() {
                     binding.btnSave.isEnabled = false
                     binding.channelsHeader.visibility = View.GONE
                     adapter.submit(emptyList())
+                    updateLiveViewButton()
                     binding.statusText.setTextColor(getColor(com.app.truvend_cam.R.color.error))
                     binding.statusText.text = result.error.userMessage
                     AppLog.w(TAG, "Test failed: ${result.error.userMessage}")
@@ -159,13 +199,9 @@ class SetupActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveAndOpen() {
+    private fun saveConfig() {
         val config = app.activeConfig?.copy(verified = true) ?: readConfig()?.copy(verified = true)
-        if (config == null) {
-            Toast.makeText(this, "Test the connection first.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (app.cachedChannels.isEmpty()) {
+        if (config == null || app.cachedChannels.isEmpty()) {
             Toast.makeText(this, "Test the connection first.", Toast.LENGTH_SHORT).show()
             return
         }
@@ -173,11 +209,14 @@ class SetupActivity : AppCompatActivity() {
         val toSave = config.copy(defaultStreamType = stream, verified = true)
         app.configRepository.save(toSave)
         app.activeConfig = toSave
-        startActivity(Intent(this, LiveViewActivity::class.java))
-        finish()
+        updateLiveViewButton()
+        binding.statusText.setTextColor(getColor(com.app.truvend_cam.R.color.accent))
+        binding.statusText.text = "Saved. Tap Live view to watch cameras."
+        Toast.makeText(this, R.string.action_save, Toast.LENGTH_SHORT).show()
     }
 
     companion object {
+        /** Kept for callers that still pass it; Home no longer auto-skips. */
         const val EXTRA_FORCE_SETUP = "force_setup"
         private const val TAG = "SetupActivity"
     }

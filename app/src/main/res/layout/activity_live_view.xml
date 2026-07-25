@@ -11,29 +11,81 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Top app bar: Home left, Grid right -->
     <LinearLayout
-        android:id="@+id/overlayTop"
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="200dp"
+        android:layout_gravity="top"
         android:background="@drawable/bg_overlay_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHome"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true"
+            android:minWidth="88dp"
+            android:minHeight="48dp"
+            android:text="@string/action_home" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnViewToggle"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true"
+            android:minWidth="88dp"
+            android:minHeight="48dp"
+            android:text="@string/action_toggle_grid" />
+    </LinearLayout>
+
+    <!-- Channel + status: centered, below app bar, overlaid on video -->
+    <LinearLayout
+        android:id="@+id/overlayTop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="72dp"
+        android:background="@drawable/bg_overlay_panel"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="8dp">
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/overlayChannel"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ellipsize="end"
+            android:gravity="center"
             android:maxLines="1"
-            android:textAppearance="@style/TextAppearance.TruvendCam.Caption" />
+            android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+            android:textSize="15sp" />
 
         <TextView
             android:id="@+id/overlayStatus"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textAppearance="@style/TextAppearance.TruvendCam.Caption" />
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Caption"
+            android:textSize="14sp" />
     </LinearLayout>
 
     <HorizontalScrollView
@@ -79,33 +131,5 @@
             android:focusable="true"
             android:minWidth="160dp"
             android:text="@string/action_retry" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/quickActions"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:orientation="horizontal"
-        android:padding="8dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGrid"
-            style="@style/Widget.TruvendCam.Button.Secondary"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:focusable="true"
-            android:minWidth="96dp"
-            android:text="@string/action_grid" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSettings"
-            style="@style/Widget.TruvendCam.Button.Secondary"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:focusable="true"
-            android:minWidth="96dp"
-            android:text="@string/action_settings" />
     </LinearLayout>
 </FrameLayout>
