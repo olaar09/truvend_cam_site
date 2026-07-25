@@ -15,7 +15,7 @@
     <string name="hint_password">Password</string>
     <!-- Installer defaults (shown when no saved config) -->
     <string name="default_dvr_host">192.168.0.183</string>
-    <string name="default_dvr_username">Admin</string>
+    <string name="default_dvr_username">admin</string>
     <string name="default_dvr_password">setup_112</string>
     <string name="label_stream_type">Default stream</string>
     <string name="stream_main">Main</string>
