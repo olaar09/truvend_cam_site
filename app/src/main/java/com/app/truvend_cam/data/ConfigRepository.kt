@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.app.truvend_cam.dvr.SegmentationSettings
 import com.app.truvend_cam.util.AppLog
 
 /**
@@ -79,6 +80,36 @@ class ConfigRepository(context: Context) {
         prefs.edit().putBoolean(KEY_RELAY_ENABLED, enabled).apply()
     }
 
+    /**
+     * Local copy of per-site segmentation policy. Defaults match the product defaults
+     * (enabled, 1 hour). Remote refresh (when built) writes here via
+     * [saveSegmentationSettings].
+     */
+    fun loadSegmentationSettings(): SegmentationSettings {
+        return SegmentationSettings(
+            enabled = prefs.getBoolean(
+                KEY_SEGMENTATION_ENABLED,
+                SegmentationSettings.DEFAULT_ENABLED,
+            ),
+            intervalHours = prefs.getInt(
+                KEY_SEGMENTATION_INTERVAL_HOURS,
+                SegmentationSettings.DEFAULT_INTERVAL_HOURS,
+            ),
+        )
+    }
+
+    fun saveSegmentationSettings(settings: SegmentationSettings) {
+        prefs.edit()
+            .putBoolean(KEY_SEGMENTATION_ENABLED, settings.enabled)
+            .putInt(KEY_SEGMENTATION_INTERVAL_HOURS, settings.clampedIntervalHours)
+            .apply()
+        AppLog.i(
+            "ConfigRepository",
+            "Saved keeper enabled=${settings.enabled} " +
+                "intervalHours=${settings.clampedIntervalHours}",
+        )
+    }
+
     /** True when DVR is configured and the relay should auto-start (e.g. after reboot). */
     fun isRelayConfigured(): Boolean {
         return hasWorkingConfig() && loadRelaySettings().enabled
@@ -105,5 +136,7 @@ class ConfigRepository(context: Context) {
         private const val KEY_VERIFIED = "verified"
         private const val KEY_LISTEN_PORT = "listen_port"
         private const val KEY_RELAY_ENABLED = "relay_enabled"
+        private const val KEY_SEGMENTATION_ENABLED = "segmentation_enabled"
+        private const val KEY_SEGMENTATION_INTERVAL_HOURS = "segmentation_interval_hours"
     }
 }

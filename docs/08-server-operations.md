@@ -183,7 +183,7 @@ Path names are `<site>_ch<n>`. The stream ID in the URL is **channel × 100 + st
 | 2 | 201 | 202 |
 | 4 | 401 | 402 |
 
-`sitectl` always generates sub-streams — lower bandwidth, and they are the ones set to H.264.
+`sitectl` always generates sub-streams — lower bandwidth, and they must be **H.264 with H.264+ enabled** on the DVR (see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub)).
 
 ## Viewing URLs
 
@@ -192,6 +192,25 @@ http://<vps-ip>:8889/<site>_ch<n>
 ```
 
 Use **Firefox** while on plain HTTP; Chrome blocks WebRTC without HTTPS.
+
+### HTTPS setup (for `relay.truvend.online`)
+
+**Full guide:** [`backend/plexity-ai-chat/bash/HTTPS-RELAY.md`](../../../backend/plexity-ai-chat/bash/HTTPS-RELAY.md)
+
+```yaml
+# /root/mediamtx.yml (+ sitectl mtx_regenerate HEADER)
+webrtc: yes
+webrtcAddress: 127.0.0.1:8889
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: [relay.truvend.online]
+```
+
+```bash
+ufw allow 8189/udp
+systemctl restart mediamtx
+```
+
+View: `https://relay.truvend.online/<site>_ch<n>`
 
 ## Check the API
 
@@ -318,7 +337,7 @@ Success:
 Stream #0:0: Video: h264 (High), yuv420p, 704x576, 15 fps
 ```
 
-**Must say `h264`.** If it says `hevc`, the DVR's sub-stream is still H.265 and WebRTC will not play it — fix it in the DVR under *Record → Parameters → Sub-Stream*.
+**Must say `h264`.** If it says `hevc`, the DVR's sub-stream is still H.265 and WebRTC will not play it — fix it in the DVR under *Record → Encoding → Sub-Stream* (set codec to **H.264** and enable **H.264+** so bitrate/stream size stays manageable).
 
 `-rtsp_transport tcp` is required, for the same reason MediaMTX needs `rtspTransport: tcp`.
 
@@ -378,7 +397,7 @@ Things not yet done, in the order they will matter.
 
 | Gap | Consequence |
 |---|---|
-| **No HTTPS** | Chrome refuses WebRTC over plain HTTP. Firefox only, for now |
+| **HTTPS not configured** | Chrome refuses WebRTC over plain HTTP — see “HTTPS setup” above (`webrtcAddress` / `webrtcAdditionalHosts` / `webrtcLocalUDPAddress`) |
 | **No authentication** | Anyone who guesses a path URL can watch that camera |
 | **No heartbeat** | You learn a site is down when the customer calls |
 | **DVR passwords in plaintext** in `sites.db` | `chmod 600`, but a database with encryption is the eventual answer |

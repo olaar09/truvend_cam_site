@@ -21,18 +21,30 @@ import androidx.core.content.ContextCompat
 import com.app.truvend_cam.R
 import com.app.truvend_cam.TruvendApp
 import com.app.truvend_cam.data.ConfigRepository
+import com.app.truvend_cam.data.RelaySettings
+import com.app.truvend_cam.dvr.LocalOnlySiteConfigSource
+import com.app.truvend_cam.dvr.RecordControlClient
+import com.app.truvend_cam.dvr.SegmentationScheduler
 import com.app.truvend_cam.forwarder.ForwarderServer
+import com.app.truvend_cam.network.IsapiClient
 import com.app.truvend_cam.ui.RelayActivity
 import com.app.truvend_cam.util.AppLog
 import java.net.Socket
+import kotlinx.coroutines.runBlocking
 
 /**
- * Foreground service hosting [ForwarderServer]. Survives screen-off and
- * process backgrounding via a persistent notification + partial wake lock.
+ * Foreground service hosting RTSP + HTTP/ISAPI [ForwarderServer]s. Survives
+ * screen-off and process backgrounding via a persistent notification + partial
+ * wake lock.
+ *
+ * Also hosts [SegmentationScheduler] for wake-lock / boot lifetime only — the
+ * TCP accept/pipe path is untouched; all DVR-management logic stays in `dvr/`.
  */
 class ForwarderService : Service() {
 
-    private var forwarder: ForwarderServer? = null
+    private var rtspForwarder: ForwarderServer? = null
+    private var httpForwarder: ForwarderServer? = null
+    private var segmentationScheduler: SegmentationScheduler? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -40,7 +52,7 @@ class ForwarderService : Service() {
 
     private val notificationUpdater = object : Runnable {
         override fun run() {
-            if (forwarder != null) {
+            if (rtspForwarder != null || httpForwarder != null) {
                 updateNotification()
                 handler.postDelayed(this, NOTIFICATION_REFRESH_MS)
             }
@@ -59,7 +71,7 @@ class ForwarderService : Service() {
             }
         }
 
-        if (forwarder != null) {
+        if (rtspForwarder != null || httpForwarder != null) {
             AppLog.i(TAG, "Already running")
             return START_STICKY
         }
@@ -76,6 +88,17 @@ class ForwarderService : Service() {
         }
 
         val relay = app.configRepository.loadRelaySettings()
+        // HTTP listen is fixed at 8080; never let a mis-saved RTSP port collide with it.
+        val rtspListenPort = if (relay.listenPort == RelaySettings.DEFAULT_HTTP_LISTEN_PORT) {
+            AppLog.w(
+                TAG,
+                "RTSP listen port ${relay.listenPort} collides with HTTP/ISAPI — " +
+                    "falling back to ${RelaySettings.DEFAULT_LISTEN_PORT}",
+            )
+            RelaySettings.DEFAULT_LISTEN_PORT
+        } else {
+            relay.listenPort
+        }
         ensureNotificationChannel()
         startAsForeground(buildNotification(0))
 
@@ -91,24 +114,82 @@ class ForwarderService : Service() {
             wifiBinder.bindToLanSync()
         }
 
-        forwarder = ForwarderServer(
+        val prepareDvrSocket: (Socket) -> Unit = { socket: Socket ->
+            // Bind outbound DVR socket to LAN when available (cellular dual-stack).
+            // Later: also call VpnService.protect(socket) here.
+            val network = wifiBinder.getBoundNetwork() ?: wifiBinder.bindToLanSync()
+            network?.let { runCatching { wifiBinder.bindSocket(it, socket) } }
+        }
+
+        // RTSP: tunnel → box:listenPort → DVR:rtspPort (typically 8554 → 554)
+        // Keep the original 60s socket timeout — unchanged from pre-HTTP behaviour.
+        rtspForwarder = ForwarderServer(
             dvrHost = config.host,
             dvrPort = config.rtspPort,
-            listenPort = relay.listenPort,
-            prepareDvrSocket = { socket: Socket ->
-                // Bind outbound DVR socket to LAN when available (cellular dual-stack).
-                // Later: also call VpnService.protect(socket) here.
-                val network = wifiBinder.getBoundNetwork() ?: wifiBinder.bindToLanSync()
-                network?.let { runCatching { wifiBinder.bindSocket(it, socket) } }
-            },
+            listenPort = rtspListenPort,
+            socketTimeoutMs = ForwarderServer.DEFAULT_SOCKET_TIMEOUT_MS,
+            prepareDvrSocket = prepareDvrSocket,
+        ).also { it.start() }
+
+        // HTTP/ISAPI: tunnel → box:8080 → DVR:httpPort (typically 8080 → 80)
+        // No idle timeout — long downloads idle the reverse direction after the request.
+        httpForwarder = ForwarderServer(
+            dvrHost = config.host,
+            dvrPort = config.httpPort,
+            listenPort = RelaySettings.DEFAULT_HTTP_LISTEN_PORT,
+            socketTimeoutMs = ForwarderServer.NO_SOCKET_TIMEOUT_MS,
+            prepareDvrSocket = prepareDvrSocket,
         ).also { it.start() }
 
         instance = this
         app.configRepository.setRelayEnabled(true)
+        startSegmentation(app)
         handler.post(notificationUpdater)
-        AppLog.i(TAG, "Relay service started → ${config.host}:${config.rtspPort}")
+        AppLog.i(
+            TAG,
+            "Relay service started → RTSP ${config.host}:${config.rtspPort} " +
+                "+ HTTP ${config.host}:${config.httpPort}",
+        )
 
         return START_STICKY
+    }
+
+    private fun startSegmentation(app: TruvendApp) {
+        if (segmentationScheduler?.isRunning() == true) return
+        segmentationScheduler = SegmentationScheduler(
+            configRepository = app.configRepository,
+            recordControl = RecordControlClient(app.isapiClient),
+            siteConfigSource = LocalOnlySiteConfigSource(),
+            trackIdsProvider = { resolveMainTrackIds(app) },
+        ).also { it.start() }
+    }
+
+    /**
+     * Prefer in-memory discovery from live/setup. After reboot the cache is empty —
+     * discover once on the worker thread so multi-channel sites segment all mains.
+     */
+    private fun resolveMainTrackIds(app: TruvendApp): List<Int> {
+        if (app.cachedChannels.isNotEmpty()) {
+            return SegmentationScheduler.mainTrackIds(app.cachedChannels)
+        }
+        val config = app.configRepository.load() ?: return SegmentationScheduler.mainTrackIds(emptyList())
+        return runBlocking {
+            when (val result = app.isapiClient.discoverChannels(config)) {
+                is IsapiClient.Result.Ok -> {
+                    app.cachedChannels = result.value
+                    SegmentationScheduler.mainTrackIds(result.value)
+                }
+                is IsapiClient.Result.Err -> {
+                    AppLog.w(TAG, "Channel discovery for segmentation failed: ${result.error.userMessage}")
+                    SegmentationScheduler.mainTrackIds(emptyList())
+                }
+            }
+        }
+    }
+
+    private fun stopSegmentation() {
+        runCatching { segmentationScheduler?.stop() }
+        segmentationScheduler = null
     }
 
     private fun startAsForeground(notification: Notification) {
@@ -129,13 +210,20 @@ class ForwarderService : Service() {
         handler.removeCallbacks(notificationUpdater)
         val app = application as TruvendApp
         app.configRepository.setRelayEnabled(false)
+        stopSegmentation()
         releaseNetworkCallback()
-        runCatching { forwarder?.stop() }
-        forwarder = null
+        stopForwarders()
         instance = null
         releaseWakeLock()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun stopForwarders() {
+        runCatching { rtspForwarder?.stop() }
+        runCatching { httpForwarder?.stop() }
+        rtspForwarder = null
+        httpForwarder = null
     }
 
     private fun releaseNetworkCallback() {
@@ -165,9 +253,9 @@ class ForwarderService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(notificationUpdater)
+        stopSegmentation()
         releaseNetworkCallback()
-        runCatching { forwarder?.stop() }
-        forwarder = null
+        stopForwarders()
         if (instance === this) instance = null
         releaseWakeLock()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -177,28 +265,57 @@ class ForwarderService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    fun activeConnections(): Int = forwarder?.activeConnections() ?: 0
+    fun activeConnections(): Int =
+        (rtspForwarder?.activeConnections() ?: 0) + (httpForwarder?.activeConnections() ?: 0)
 
-    fun totalConnections(): Long = forwarder?.totalConnections() ?: 0L
+    fun totalConnections(): Long =
+        (rtspForwarder?.totalConnections() ?: 0L) + (httpForwarder?.totalConnections() ?: 0L)
 
     fun uptimeMillis(): Long {
         if (startedAtElapsed == 0L) return 0L
         return SystemClock.elapsedRealtime() - startedAtElapsed
     }
 
-    fun isRelayRunning(): Boolean = forwarder?.isRunning() == true
+    fun isRelayRunning(): Boolean =
+        rtspForwarder?.isRunning() == true || httpForwarder?.isRunning() == true
 
-    fun isListening(): Boolean = forwarder?.isListening() == true
+    /** True when the RTSP listener is bound (primary relay readiness). */
+    fun isListening(): Boolean = rtspForwarder?.isListening() == true
 
-    fun listenPort(): Int? = forwarder?.listenPort()
+    fun isHttpListening(): Boolean = httpForwarder?.isListening() == true
 
-    fun dvrHost(): String? = forwarder?.dvrHost()
+    fun listenPort(): Int? = rtspForwarder?.listenPort()
 
-    fun dvrPort(): Int? = forwarder?.dvrPort()
+    fun httpListenPort(): Int? = httpForwarder?.listenPort()
 
-    fun lastError(): String? = forwarder?.lastError()
+    fun dvrHost(): String? = rtspForwarder?.dvrHost() ?: httpForwarder?.dvrHost()
 
-    fun socatEquivalent(): String? = forwarder?.socatEquivalent()
+    fun dvrPort(): Int? = rtspForwarder?.dvrPort()
+
+    fun httpDvrPort(): Int? = httpForwarder?.dvrPort()
+
+    fun lastError(): String? {
+        val rtsp = rtspForwarder?.lastError()
+        val http = httpForwarder?.lastError()
+        return when {
+            !rtsp.isNullOrBlank() && !http.isNullOrBlank() -> "RTSP: $rtsp | HTTP: $http"
+            !rtsp.isNullOrBlank() -> rtsp
+            !http.isNullOrBlank() -> "HTTP: $http"
+            else -> null
+        }
+    }
+
+    fun socatEquivalent(): String? = rtspForwarder?.socatEquivalent()
+
+    fun httpSocatEquivalent(): String? = httpForwarder?.socatEquivalent()
+
+    fun segmentationSummary(): String? = segmentationScheduler?.lastCycleSummary
+
+    fun segmentationRunning(): Boolean = segmentationScheduler?.isRunning() == true
+
+    fun requestSegmentationCycleNow() {
+        segmentationScheduler?.runCycleNow()
+    }
 
     private fun updateNotification() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -218,7 +335,7 @@ class ForwarderService : Service() {
             Intent(this, ForwarderService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val listening = isListening()
+        val listening = isListening() || isHttpListening()
         val text = if (listening) {
             getString(R.string.relay_notification_text, active)
         } else {
@@ -265,6 +382,8 @@ class ForwarderService : Service() {
 
         fun isListening(): Boolean = instance?.isListening() == true
 
+        fun isHttpListening(): Boolean = instance?.isHttpListening() == true
+
         fun activeConnections(): Int = instance?.activeConnections() ?: 0
 
         fun totalConnections(): Long = instance?.totalConnections() ?: 0L
@@ -273,13 +392,27 @@ class ForwarderService : Service() {
 
         fun listenPort(): Int? = instance?.listenPort()
 
+        fun httpListenPort(): Int? = instance?.httpListenPort()
+
         fun dvrHost(): String? = instance?.dvrHost()
 
         fun dvrPort(): Int? = instance?.dvrPort()
 
+        fun httpDvrPort(): Int? = instance?.httpDvrPort()
+
         fun lastError(): String? = instance?.lastError()
 
         fun socatEquivalent(): String? = instance?.socatEquivalent()
+
+        fun httpSocatEquivalent(): String? = instance?.httpSocatEquivalent()
+
+        fun segmentationSummary(): String? = instance?.segmentationSummary()
+
+        fun segmentationRunning(): Boolean = instance?.segmentationRunning() == true
+
+        fun requestSegmentationCycleNow() {
+            instance?.requestSegmentationCycleNow()
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, ForwarderService::class.java)

@@ -6,8 +6,10 @@ import com.app.truvend_cam.data.DvrConfig
 import com.app.truvend_cam.util.AppLog
 import okhttp3.Authenticator
 import okhttp3.Credentials
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import java.io.IOException
@@ -18,6 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Hikvision ISAPI client with HTTP Digest auth.
  * Generic enough to add getSnapshot(channelId) in Phase 2 without restructuring auth.
+ *
+ * Record-control PUTs used by [com.app.truvend_cam.dvr.RecordControlClient] share
+ * the same Digest client + Wi‑Fi binding — they do not touch the TCP forwarder.
  */
 class IsapiClient(
     private val wifiBinder: WifiNetworkBinder,
@@ -95,6 +100,70 @@ class IsapiClient(
     @Suppress("unused")
     fun snapshotUrl(config: DvrConfig, streamingChannelId: Int): String =
         "${config.httpBaseUrl}/ISAPI/Streaming/channels/$streamingChannelId/picture"
+
+    /**
+     * PUT empty body to a ContentMgmt record-control path (manual stop/start).
+     * Accepts 200 / 204. Digest auth + LAN bind match [discoverChannels].
+     */
+    fun putRecordControl(config: DvrConfig, path: String): Result<Unit> {
+        val client = clientFor(config) ?: return Result.Err(
+            when (wifiBinder.currentLanStatus()) {
+                is WifiNetworkBinder.LanStatus.CellularOnly -> ConnectionError.CellularOnly()
+                else -> ConnectionError.NoResponse(config.host)
+            },
+        )
+        val url = "${config.httpBaseUrl}$path"
+        AppLog.d(TAG, "PUT $url")
+        val body = ByteArray(0).toRequestBody("application/xml".toMediaTypeOrNull())
+        val request = Request.Builder().url(url).put(body).build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                when (response.code) {
+                    200, 204 -> Result.Ok(Unit)
+                    401 -> Result.Err(ConnectionError.AuthFailed())
+                    403 -> Result.Err(ConnectionError.HttpRejected(response.code))
+                    else -> {
+                        AppLog.w(TAG, "PUT $path → HTTP ${response.code}")
+                        Result.Err(ConnectionError.HttpRejected(response.code))
+                    }
+                }
+            }
+        } catch (e: IOException) {
+            AppLog.e(TAG, "IO error PUT $path on ${config.host}", e)
+            Result.Err(ConnectionError.NoResponse(config.host))
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Unexpected error PUT $path", e)
+            Result.Err(ConnectionError.Generic(e.message ?: "unknown error"))
+        }
+    }
+
+    /**
+     * GET …/record/control/manual/capabilities — look for a native split/checkpoint
+     * if stop→start gap is too large.
+     */
+    fun getRecordControlCapabilities(config: DvrConfig): Result<String> {
+        val client = clientFor(config) ?: return Result.Err(
+            when (wifiBinder.currentLanStatus()) {
+                is WifiNetworkBinder.LanStatus.CellularOnly -> ConnectionError.CellularOnly()
+                else -> ConnectionError.NoResponse(config.host)
+            },
+        )
+        return getXml(client, config, "/ISAPI/ContentMgmt/record/control/manual/capabilities")
+    }
+
+    /**
+     * Builds a Digest client bound to LAN. Uses the sync binder so record-control
+     * can run on the segmentation worker thread (non-coroutine).
+     */
+    private fun clientFor(config: DvrConfig): OkHttpClient? {
+        when (wifiBinder.currentLanStatus()) {
+            is WifiNetworkBinder.LanStatus.CellularOnly -> return null
+            is WifiNetworkBinder.LanStatus.NoNetwork -> return null
+            else -> { /* WifiAvailable or Unknown — proceed */ }
+        }
+        val network = wifiBinder.getBoundNetwork() ?: wifiBinder.bindToLanSync()
+        return buildClient(config, network)
+    }
 
     private fun getXml(
         client: OkHttpClient,

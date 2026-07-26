@@ -18,11 +18,16 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * [prepareDvrSocket] runs on the outbound DVR socket before connect — reserved
  * for future [android.net.VpnService.protect] (and optional network binding).
+ *
+ * [socketTimeoutMs] is SO_TIMEOUT on relay sockets (0 = infinite). RTSP keeps the
+ * historical 60s default. HTTP/ISAPI must use 0 — long downloads idle one
+ * direction after the request, and a finite timeout would cut them mid-transfer.
  */
 class ForwarderServer(
     private val dvrHost: String,
     private val dvrPort: Int = 554,
     private val listenPort: Int = 8554,
+    private val socketTimeoutMs: Int = DEFAULT_SOCKET_TIMEOUT_MS,
     private val prepareDvrSocket: (Socket) -> Unit = {},
 ) {
     private val pool = Executors.newCachedThreadPool()
@@ -41,7 +46,10 @@ class ForwarderServer(
         private const val TAG = "ForwarderServer"
         private const val MAX_CONNECTIONS = 8
         private const val BUFFER_SIZE = 32 * 1024
-        private const val SOCKET_TIMEOUT_MS = 60_000
+        /** Historical RTSP relay read/idle timeout. */
+        const val DEFAULT_SOCKET_TIMEOUT_MS = 60_000
+        /** No read/idle timeout — required for long HTTP/ISAPI downloads. */
+        const val NO_SOCKET_TIMEOUT_MS = 0
         private const val DVR_CONNECT_TIMEOUT_MS = 5_000
     }
 
@@ -109,14 +117,14 @@ class ForwarderServer(
     private fun handleConnection(client: Socket) {
         var dvr: Socket? = null
         try {
-            client.soTimeout = SOCKET_TIMEOUT_MS
+            client.soTimeout = socketTimeoutMs
             client.tcpNoDelay = true
             client.keepAlive = true
 
             dvr = Socket().apply {
                 prepareDvrSocket(this)
                 connect(InetSocketAddress(dvrHost, dvrPort), DVR_CONNECT_TIMEOUT_MS)
-                soTimeout = SOCKET_TIMEOUT_MS
+                soTimeout = socketTimeoutMs
                 tcpNoDelay = true
                 keepAlive = true
             }

@@ -169,8 +169,8 @@ It will ask for **DVR username** and **password** (or use `DVR_USER` / `DVR_PASS
 4. Writes `/root/site-configs/<site>.conf` for the Android WireGuard app.
 5. Appends MediaMTX paths like `site001_ch1` … that pull:
 
-   `rtsp://USER:PASS@10.8.0.2:8554/Streaming/Channels/102`  
-   (channel `N` → stream id `N02` = camera N **sub-stream**)
+   `rtsp://USER:PASS@10.8.0.2:8554/Streaming/Channels/102`
+   (channel `N` → stream id `N02` = camera N **sub-stream**; DVR must use **H.264** with **H.264+** enabled — see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub))
 
 6. Restarts MediaMTX.
 7. Prints browser URLs and a **QR code** to scan in the WireGuard app.
@@ -190,6 +190,27 @@ Open (use your real public IP and site name):
 ```
 http://<PUBLIC_IP>:8889/site001_ch1
 ```
+
+### HTTPS setup (Chrome / production viewers)
+
+Plain HTTP WebRTC works in Firefox only. For the full walkthrough (nginx TLS, MediaMTX knobs, firewall, timeouts, renewal), see the backend ops guide:
+
+**[`backend/plexity-ai-chat/bash/HTTPS-RELAY.md`](../../../backend/plexity-ai-chat/bash/HTTPS-RELAY.md)**
+
+Short version:
+
+1. `npm run nginx:relay` then `npm run ssl:cert -- relay.truvend.online --no-www`
+2. In `mediamtx.yml` (and the `sitectl` `mtx_regenerate` HEADER):
+
+```yaml
+webrtc: yes
+webrtcAddress: 127.0.0.1:8889
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: [relay.truvend.online]
+```
+
+3. `ufw allow 8189/udp` then `systemctl restart mediamtx`
+4. View: `https://relay.truvend.online/<site>_ch1`
 
 ### You are done with Step B when
 

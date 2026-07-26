@@ -7,7 +7,7 @@
 
 ## Start with the whole picture
 
-**→ [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md)** — single document: architecture diagrams, all server tools, all phone/Android tools, DVR settings (including **Stream type = Video**, **encoding = H.264**), ports, install order, and proof ladder.
+**→ [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md)** — single document: architecture diagrams, all server tools, all phone/Android tools, DVR settings (including **Stream type = Video**, **encoding = H.264**, **H.264+ enabled**), ports, install order, and proof ladder.
 
 ---
 
@@ -26,6 +26,8 @@ Read these in order after the architecture page. Each page ends with a short “
 | 6 | [`sitectl` — provision a site](06-sitectl.md) | Add/remove/list sites (WG + registry + MediaMTX) |
 | 7 | [`sitectl` usage & API integration](07-sitectl-usage-and-api.md) | Full usage, migration, future HTTP API wrapper |
 | 8 | [Server operations reference](08-server-operations.md) | Day-to-day VPS ops, diagnostics, backup, known gaps |
+| 9 | [DVR periodic segmentation](09-dvr-segmentation.md) | Box-side stop→start so playback segments stay bounded |
+| — | [HTTPS for the Relay (MediaMTX behind nginx)](../../../backend/plexity-ai-chat/bash/HTTPS-RELAY.md) | TLS for Chrome/Safari WebRTC on `relay.truvend.online` |
 
 ## Technical deep-dive
 

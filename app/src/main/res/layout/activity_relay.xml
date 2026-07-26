@@ -100,7 +100,7 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/socatLine"
+                android:id="@+id/rtspForwardLine"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -109,18 +109,37 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:id="@+id/httpForwardLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="monospace"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/socatLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="monospace"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/socatHttpLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="monospace"
+                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+                android:textSize="14sp" />
+
+            <TextView
                 android:id="@+id/listenAddress"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:textAppearance="@style/TextAppearance.TruvendCam.Body"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/forwardTarget"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
                 android:textAppearance="@style/TextAppearance.TruvendCam.Body"
                 android:textSize="18sp" />
 
@@ -176,6 +195,32 @@
             android:layout_marginTop="8dp"
             android:textAppearance="@style/TextAppearance.TruvendCam.Body"
             android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/dvrReachableHttp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="22sp" />
+
+        <TextView
+            android:id="@+id/segmentationStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="@style/TextAppearance.TruvendCam.Body"
+            android:textSize="18sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSegmentNow"
+            style="@style/Widget.TruvendCam.Button.Secondary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:focusable="true"
+            android:text="@string/relay_action_segment_now"
+            android:visibility="gone" />
 
         <TextView
             android:layout_width="match_parent"

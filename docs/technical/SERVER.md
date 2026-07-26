@@ -83,6 +83,24 @@ On the **client** config, `AllowedIPs = 10.8.0.0/16` (`WG_CIDR` from `relay.env`
 | `hls` / `rtmp` / `srt` | no | Unused |
 | `apiAddress` | `127.0.0.1:9997` | Not exposed |
 
+#### HTTPS (nginx in front of MediaMTX)
+
+**Full guide:** [`backend/plexity-ai-chat/bash/HTTPS-RELAY.md`](../../../../backend/plexity-ai-chat/bash/HTTPS-RELAY.md)
+
+```yaml
+webrtc: yes
+webrtcAddress: 127.0.0.1:8889
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: [relay.truvend.online]
+```
+
+```bash
+ufw allow 8189/udp
+```
+
+nginx terminates TLS → `127.0.0.1:8889`; UDP **8189** remains directly reachable on the VPS. Also bake these knobs into the `sitectl` `mtx_regenerate` HEADER so `sync` does not wipe them.
+
+
 systemd unit: `Restart=always`, `RestartSec=5`, runs as root with explicit config path.
 
 ### Firewall rationale
@@ -133,7 +151,7 @@ For cameras `1..N`:
 
 | Piece | Meaning |
 |---|---|
-| `<n>02` | Hikvision sub-stream for camera `n` (`102`, `202`, …) |
+| `<n>02` | Hikvision sub-stream for camera `n` (`102`, `202`, …). DVR encoding must be **H.264** with **H.264+** enabled (not H.265) — see [SYSTEM-ARCHITECTURE §7.3](../SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub) |
 | `sourceOnDemand` | Pull only while a viewer is connected |
 | `sourceOnDemandCloseAfter` | Drop idle pull after 10s (saves DVR sessions) |
 

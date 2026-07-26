@@ -101,7 +101,7 @@ sequenceDiagram
   WG->>REL: TCP connect (tunnel)
   REL->>DVR: Separate TCP connect :554
   Note over REL: Bytes copied both ways<br/>paths unchanged
-  DVR-->>REL: H.264 RTSP stream
+  DVR-->>REL: H.264 (+ H.264+) RTSP stream
   REL-->>WG: Same bytes
   WG-->>MTX: Same bytes
   MTX-->>BR: WebRTC video
@@ -232,19 +232,24 @@ Configure via DVR local UI or web UI (`http://<dvr-ip>`). Do this **before** rel
 
 ### 7.3 Encoding (per channel — main and sub)
 
-Path is typically **Configuration → Record → Encoding** (wording varies by firmware). Apply on **every** camera channel you use.
+Path is typically **Configuration → Record → Encoding** (wording varies by firmware). Apply on **every** camera channel you use. Remote viewing (`sitectl`) pulls **sub-streams** (`…/102`, `…/202`, …) — those must be correct or WebRTC will fail or burn bandwidth.
 
 | Setting | Value | Why |
 |---|---|---|
 | **Stream type** | **Video** (not Video & Audio, unless you need audio and have tested it) | Keeps the pipe simple; matches how we pull/play today |
-| **Video encoding / codec** | **H.264** | Widest compatibility with LibVLC, MediaMTX, browsers. Prefer H.264 over H.265 on this stack unless every hop is proven with HEVC |
+| **Video encoding / codec** | **H.264** | Required for LibVLC, MediaMTX, and browser WebRTC. Do **not** leave sub-streams on H.265 / HEVC |
+| **H.264+** | **Enabled** (Smart Codec / H.264+ — wording varies by firmware) | Keeps bitrate and file/stream size down on the tunnel and on DVR storage. Plain H.264 without H.264+ is often too large for remote viewing |
 | **Sub-stream** | **Enabled** | Grid view + remote paths use sub (`…/102`, `…/202`, …) |
 | Resolution / bitrate (sub) | Modest (e.g. CIF/D1-class, low bitrate) | Saves DVR sessions and tunnel bandwidth |
 | Frame rate | As needed (e.g. 15–25 fps) | Match site requirements |
 | **I-frame interval (GOV)** | **Equal to frame rate** (25 fps → 25) | Faster startup / cleaner seeks after connect |
 | Audio | Off unless required | Fewer moving parts |
 
-> **H.264 vs H.265:** If a channel is left on H.265, local play *may* still work on some devices while browser/MediaMTX path fails or is heavier. Standardise on **H.264** for deployments unless you have explicitly validated H.265 end-to-end.
+> **H.264 + H.264+ (required for deployments)**
+>
+> - **H.264** — the codec browsers and MediaMTX expect. If `ffprobe` reports `hevc`, WebRTC will not play; fix under *Record → Encoding → Sub-Stream*.
+> - **H.264+** — Hikvision’s smarter H.264 mode. Leave it **on** so stream size stays manageable over WireGuard. H.264 without H.264+ often produces streams that are too large for remote sites.
+> - **H.265** — do not use on this stack unless every hop is proven with HEVC end-to-end (today: not supported for browser playback).
 
 ### 7.4 RTSP channel IDs (Hikvision)
 
@@ -271,6 +276,10 @@ Via relay / tunnel: same path, host = box LAN IP or `10.8.0.N`, port **8554**.
 |---|---|
 | `GET /ISAPI/Streaming/channels` | Discover channels (HTTP Digest) |
 | `GET /ISAPI/Streaming/channels/<id>/picture` | Snapshot (Phase 2 hook) |
+| `PUT /ISAPI/ContentMgmt/record/control/manual/stop/tracks/<id>` | Periodic segmentation (close open file) |
+| `PUT /ISAPI/ContentMgmt/record/control/manual/start/tracks/<id>` | Periodic segmentation (open new file) |
+
+See [09-dvr-segmentation.md](09-dvr-segmentation.md). Runs on the box on a timer (LAN only); does not depend on the tunnel.
 
 ---
 
@@ -320,7 +329,7 @@ site001_ch1:
 
 ```mermaid
 flowchart TD
-  A["1. Site physical<br/>DVR + router + box on Wi‑Fi"] --> B["2. DVR settings<br/>DHCP, ISAPI, H.264, Video, sub-stream"]
+  A["1. Site physical<br/>DVR + router + box on Wi‑Fi"] --> B["2. DVR settings<br/>DHCP, ISAPI, H.264 + H.264+, Video, sub-stream"]
   B --> C["3. Truvend Cam Setup<br/>Test + live view on LAN"]
   C --> D["4. VPS setup-server.sh<br/>WG + MediaMTX + firewall"]
   D --> E["5. Configure /etc/relay/relay.env<br/>then sitectl add"]
@@ -358,7 +367,8 @@ Run in order; do not skip.
 |---|---|
 | Local live + grid | WireGuard embedded inside Truvend Cam |
 | In-app TCP relay (FGS) | Motion / snapshots / cloud upload |
-| Standalone WireGuard on box | Enrolment / provisioning portal |
+| Box-side DVR periodic segmentation | Enrolment / box config refresh from site record |
+| Standalone WireGuard on box | On-box event clip buffer (deferred — server uses dumb playback) |
 | VPS WG + MediaMTX + `sitectl` | Changing live-view UX |
 
 When WG is embedded later: call `VpnService.protect()` on the outbound DVR socket (`prepareDvrSocket` hook already exists).

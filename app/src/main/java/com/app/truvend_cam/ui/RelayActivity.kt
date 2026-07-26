@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.app.truvend_cam.BuildConfig
 import com.app.truvend_cam.R
 import com.app.truvend_cam.TruvendApp
 import com.app.truvend_cam.data.RelaySettings
@@ -23,6 +24,7 @@ import com.app.truvend_cam.databinding.ActivityRelayBinding
 import com.app.truvend_cam.service.ForwarderService
 import com.app.truvend_cam.util.AppLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.Inet4Address
@@ -32,8 +34,8 @@ import java.net.Socket
 import java.util.concurrent.TimeUnit
 
 /**
- * Installer-facing relay status: running state, listen/bind details,
- * socat-equivalent path, connections, DVR reachability, battery warning.
+ * Installer-facing relay status: running state, RTSP + HTTP forward details,
+ * socat-equivalent paths, connections, DVR reachability, battery warning.
  */
 class RelayActivity : AppCompatActivity() {
 
@@ -90,6 +92,18 @@ class RelayActivity : AppCompatActivity() {
         binding.btnLogs.setOnClickListener {
             startActivity(Intent(this, LogActivity::class.java))
         }
+        // Debug-only: fire stop→start immediately for gap / schedule tests.
+        if (BuildConfig.DEBUG) {
+            binding.btnSegmentNow.visibility = View.VISIBLE
+            binding.btnSegmentNow.setOnClickListener {
+                if (!ForwarderService.segmentationRunning()) {
+                    Toast.makeText(this, R.string.relay_segment_now_need_relay, Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                ForwarderService.requestSegmentationCycleNow()
+                Toast.makeText(this, R.string.relay_segment_now_started, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onResume() {
@@ -115,6 +129,7 @@ class RelayActivity : AppCompatActivity() {
                 R.string.relay_dvr_address,
                 config.host,
                 config.rtspPort,
+                config.httpPort,
             )
         } else {
             binding.dvrAddress.text = getString(R.string.relay_dvr_not_configured)
@@ -125,26 +140,28 @@ class RelayActivity : AppCompatActivity() {
     private fun refreshStatus() {
         val running = ForwarderService.isRunning()
         val listening = ForwarderService.isListening()
+        val httpListening = ForwarderService.isHttpListening()
         updatingSwitch = true
         binding.switchRelay.isChecked = running
         updatingSwitch = false
 
+        // Overall green when both forwards are up; amber/red if only one or none.
         binding.statusLabel.text = when {
-            listening -> getString(R.string.relay_status_running)
+            listening && httpListening -> getString(R.string.relay_status_running)
             running -> getString(R.string.relay_listen_no)
             else -> getString(R.string.relay_status_stopped)
         }
         binding.statusLabel.setTextColor(
             getColor(
                 when {
-                    listening -> R.color.accent
+                    listening && httpListening -> R.color.accent
                     running -> R.color.error
                     else -> R.color.text_secondary
                 },
             ),
         )
 
-        refreshRelayDetails(running, listening)
+        refreshRelayDetails(running, listening, httpListening)
 
         binding.activeConnections.text = getString(
             R.string.relay_active_connections,
@@ -158,44 +175,115 @@ class RelayActivity : AppCompatActivity() {
             R.string.relay_uptime,
             formatUptime(ForwarderService.uptimeMillis()),
         )
+        refreshSegmentationStatus()
     }
 
-    private fun refreshRelayDetails(running: Boolean, listening: Boolean) {
+    private fun refreshSegmentationStatus() {
+        val settings = app.configRepository.loadSegmentationSettings()
+        if (!settings.enabled) {
+            binding.segmentationStatus.text = getString(R.string.relay_segmentation_off)
+            return
+        }
+        val last = ForwarderService.segmentationSummary()
+        binding.segmentationStatus.text = if (last.isNullOrBlank()) {
+            getString(R.string.relay_segmentation_waiting, settings.clampedIntervalHours)
+        } else {
+            getString(R.string.relay_segmentation_last, settings.clampedIntervalHours, last)
+        }
+    }
+
+    private fun refreshRelayDetails(running: Boolean, listening: Boolean, httpListening: Boolean) {
         val config = app.configRepository.load()
         val relay = app.configRepository.loadRelaySettings()
         val listenPort = ForwarderService.listenPort() ?: relay.listenPort
+        val httpListenPort =
+            ForwarderService.httpListenPort() ?: RelaySettings.DEFAULT_HTTP_LISTEN_PORT
         val dvrHost = ForwarderService.dvrHost() ?: config?.host
-        val dvrPort = ForwarderService.dvrPort() ?: config?.rtspPort ?: 554
+        val dvrRtspPort = ForwarderService.dvrPort() ?: config?.rtspPort ?: 554
+        val dvrHttpPort = ForwarderService.httpDvrPort() ?: config?.httpPort ?: 80
 
         binding.listenStatus.text = when {
-            listening -> getString(R.string.relay_listen_yes)
+            listening && httpListening -> getString(R.string.relay_listen_yes)
             running -> getString(R.string.relay_listen_no)
             else -> getString(R.string.relay_listen_stopped)
         }
         binding.listenStatus.setTextColor(
             getColor(
                 when {
-                    listening -> R.color.accent
+                    listening && httpListening -> R.color.accent
                     running -> R.color.error
                     else -> R.color.text_secondary
                 },
             ),
         )
 
+        if (dvrHost != null) {
+            binding.rtspForwardLine.text = getString(
+                when {
+                    listening -> R.string.relay_forward_rtsp_ok
+                    running -> R.string.relay_forward_rtsp_down
+                    else -> R.string.relay_forward_rtsp_off
+                },
+                listenPort,
+                dvrHost,
+                dvrRtspPort,
+            )
+            binding.rtspForwardLine.setTextColor(
+                getColor(
+                    when {
+                        listening -> R.color.accent
+                        running -> R.color.error
+                        else -> R.color.text_secondary
+                    },
+                ),
+            )
+            binding.httpForwardLine.text = getString(
+                when {
+                    httpListening -> R.string.relay_forward_http_ok
+                    running -> R.string.relay_forward_http_down
+                    else -> R.string.relay_forward_http_off
+                },
+                httpListenPort,
+                dvrHost,
+                dvrHttpPort,
+            )
+            binding.httpForwardLine.setTextColor(
+                getColor(
+                    when {
+                        httpListening -> R.color.accent
+                        running -> R.color.error
+                        else -> R.color.text_secondary
+                    },
+                ),
+            )
+        } else {
+            binding.rtspForwardLine.text = getString(R.string.relay_forward_rtsp_unknown)
+            binding.httpForwardLine.text = getString(R.string.relay_forward_http_unknown)
+            binding.rtspForwardLine.setTextColor(getColor(R.color.text_secondary))
+            binding.httpForwardLine.setTextColor(getColor(R.color.text_secondary))
+        }
+
         val socat = ForwarderService.socatEquivalent()
             ?: if (dvrHost != null) {
-                "TCP-LISTEN:$listenPort,fork,reuseaddr → TCP:$dvrHost:$dvrPort"
+                "TCP-LISTEN:$listenPort,fork,reuseaddr → TCP:$dvrHost:$dvrRtspPort"
             } else {
                 "TCP-LISTEN:$listenPort,fork,reuseaddr → TCP:(DVR not set)"
             }
         binding.socatLine.text = getString(R.string.relay_socat_line, socat)
-        binding.listenAddress.text = getString(R.string.relay_listen_address, listenPort)
 
-        if (dvrHost != null) {
-            binding.forwardTarget.text = getString(R.string.relay_forward_target, dvrHost, dvrPort)
-        } else {
-            binding.forwardTarget.text = getString(R.string.relay_dvr_not_configured)
-        }
+        val socatHttp = ForwarderService.httpSocatEquivalent()
+            ?: if (dvrHost != null) {
+                "TCP-LISTEN:$httpListenPort,fork,reuseaddr → TCP:$dvrHost:$dvrHttpPort"
+            } else {
+                "TCP-LISTEN:$httpListenPort,fork,reuseaddr → TCP:(DVR not set)"
+            }
+        binding.socatHttpLine.text = getString(R.string.relay_socat_http_line, socatHttp)
+
+        binding.listenAddress.text = getString(
+            R.string.relay_listen_address,
+            listenPort,
+            httpListenPort,
+        )
 
         val ips = localIpv4Addresses()
         binding.deviceIps.text = if (ips.isEmpty()) {
@@ -235,29 +323,44 @@ class RelayActivity : AppCompatActivity() {
 
     private fun probeDvr() {
         val config = app.configRepository.load() ?: run {
-            binding.dvrReachable.text = getString(R.string.relay_dvr_reachable_unknown)
+            binding.dvrReachable.text = getString(R.string.relay_dvr_reachable_rtsp_unknown)
+            binding.dvrReachableHttp.text = getString(R.string.relay_dvr_reachable_http_unknown)
             return
         }
         lifecycleScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                try {
-                    Socket().use { socket ->
-                        socket.soTimeout = 3_000
-                        socket.connect(InetSocketAddress(config.host, config.rtspPort), 3_000)
-                    }
-                    true
-                } catch (_: Exception) {
-                    false
-                }
+            val (rtspOk, httpOk) = withContext(Dispatchers.IO) {
+                val rtsp = async { tcpReachable(config.host, config.rtspPort) }
+                val http = async { tcpReachable(config.host, config.httpPort) }
+                rtsp.await() to http.await()
             }
-            binding.dvrReachable.text = if (ok) {
-                getString(R.string.relay_dvr_reachable_yes)
+            binding.dvrReachable.text = if (rtspOk) {
+                getString(R.string.relay_dvr_reachable_rtsp_yes)
             } else {
-                getString(R.string.relay_dvr_reachable_no)
+                getString(R.string.relay_dvr_reachable_rtsp_no)
             }
             binding.dvrReachable.setTextColor(
-                getColor(if (ok) R.color.accent else R.color.error),
+                getColor(if (rtspOk) R.color.accent else R.color.error),
             )
+            binding.dvrReachableHttp.text = if (httpOk) {
+                getString(R.string.relay_dvr_reachable_http_yes)
+            } else {
+                getString(R.string.relay_dvr_reachable_http_no)
+            }
+            binding.dvrReachableHttp.setTextColor(
+                getColor(if (httpOk) R.color.accent else R.color.error),
+            )
+        }
+    }
+
+    private fun tcpReachable(host: String, port: Int): Boolean {
+        return try {
+            Socket().use { socket ->
+                socket.soTimeout = 3_000
+                socket.connect(InetSocketAddress(host, port), 3_000)
+            }
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -296,6 +399,17 @@ class RelayActivity : AppCompatActivity() {
         val port = binding.inputListenPort.text?.toString()?.toIntOrNull()
         if (port == null || port !in 1..65535) {
             Toast.makeText(this, R.string.relay_invalid_port, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (port == RelaySettings.DEFAULT_HTTP_LISTEN_PORT) {
+            Toast.makeText(
+                this,
+                getString(
+                    R.string.relay_port_reserved_http,
+                    RelaySettings.DEFAULT_HTTP_LISTEN_PORT,
+                ),
+                Toast.LENGTH_LONG,
+            ).show()
             return
         }
         val wasRunning = ForwarderService.isRunning()

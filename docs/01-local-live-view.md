@@ -63,7 +63,8 @@ If this fails, fix networking before touching the app.
 |---|---|---|
 | ISAPI / Hikvision-CGI | Network → Advanced → Integration Protocol | Enabled |
 | Stream type | Record → Encoding | **Video** |
-| Video encoding | Record → Encoding | **H.264** |
+| Video encoding | Record → Encoding | **H.264** (not H.265) |
+| **H.264+** | Record → Encoding | **Enabled** — keeps stream size manageable |
 | Sub-stream | Record → Encoding | Enabled per channel |
 | I-frame interval | Record → Encoding | Match frame rate (e.g. 25 fps → 25) |
 
