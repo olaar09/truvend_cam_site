@@ -62,11 +62,15 @@ If this fails, fix networking before touching the app.
 | Setting | Where | Value |
 |---|---|---|
 | ISAPI / Hikvision-CGI | Network → Advanced → Integration Protocol | Enabled |
+| **Time zone** | System → Time Settings | **Site local zone** (e.g. Africa/Lagos / GMT+1) |
+| **Date & time** | System → Time Settings | **Correct current time** (prefer NTP) |
 | Stream type | Record → Encoding | **Video** |
 | Video encoding | Record → Encoding | **H.264** (not H.265) |
 | **H.264+** | Record → Encoding | **Enabled** — keeps stream size manageable |
 | Sub-stream | Record → Encoding | Enabled per channel |
 | I-frame interval | Record → Encoding | Match frame rate (e.g. 25 fps → 25) |
+
+Wrong DVR timezone or clock makes recording search / playback day queries miss clips — see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-time-and-timezone-required-for-playback).
 
 See the full DVR checklist in [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md#7-dvr-settings-required-checklist).
 

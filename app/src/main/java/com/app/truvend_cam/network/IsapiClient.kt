@@ -45,7 +45,11 @@ class IsapiClient(
         }
 
         val network = wifiBinder.bindToWifi()
-        val client = buildClient(config, network)
+        // Under WireGuard, Network.socketFactory → EPERM; process bind is enough.
+        val client = buildClient(
+            config,
+            if (wifiBinder.hasActiveVpn()) null else network,
+        )
 
         // Primary: /ISAPI/Streaming/channels
         when (val primary = getXml(client, config, "/ISAPI/Streaming/channels")) {
@@ -152,8 +156,8 @@ class IsapiClient(
     }
 
     /**
-     * Builds a Digest client bound to LAN. Uses the sync binder so record-control
-     * can run on the segmentation worker thread (non-coroutine).
+     * Digest client for record-control (worker thread). Process-binds to LAN;
+     * skips Network.socketFactory when VPN is up (EPERM under WireGuard).
      */
     private fun clientFor(config: DvrConfig): OkHttpClient? {
         when (wifiBinder.currentLanStatus()) {
@@ -161,7 +165,12 @@ class IsapiClient(
             is WifiNetworkBinder.LanStatus.NoNetwork -> return null
             else -> { /* WifiAvailable or Unknown — proceed */ }
         }
-        val network = wifiBinder.getBoundNetwork() ?: wifiBinder.bindToLanSync()
+        wifiBinder.bindToLanSync()
+        val network = if (wifiBinder.hasActiveVpn()) {
+            null
+        } else {
+            wifiBinder.getBoundNetwork()
+        }
         return buildClient(config, network)
     }
 
@@ -207,7 +216,11 @@ class IsapiClient(
             .followRedirects(true)
 
         if (network != null) {
-            builder.socketFactory(network.socketFactory)
+            try {
+                builder.socketFactory(network.socketFactory)
+            } catch (e: Exception) {
+                AppLog.w(TAG, "LAN socketFactory unavailable, using process bind only: ${e.message}")
+            }
         }
 
         return builder.build()

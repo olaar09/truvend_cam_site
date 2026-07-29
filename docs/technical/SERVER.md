@@ -151,7 +151,7 @@ For cameras `1..N`:
 
 | Piece | Meaning |
 |---|---|
-| `<n>02` | Hikvision sub-stream for camera `n` (`102`, `202`, …). DVR encoding must be **H.264** with **H.264+** enabled (not H.265) — see [SYSTEM-ARCHITECTURE §7.3](../SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub) |
+| `<n>02` | Hikvision sub-stream for camera `n` (`102`, `202`, …). DVR encoding must be **H.264** with **H.264+** enabled (not H.265) — see [SYSTEM-ARCHITECTURE §7.4](../SYSTEM-ARCHITECTURE.md#74-encoding-per-channel--main-and-sub) |
 | `sourceOnDemand` | Pull only while a viewer is connected |
 | `sourceOnDemandCloseAfter` | Drop idle pull after 10s (saves DVR sessions) |
 

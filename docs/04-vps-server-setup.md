@@ -170,7 +170,7 @@ It will ask for **DVR username** and **password** (or use `DVR_USER` / `DVR_PASS
 5. Appends MediaMTX paths like `site001_ch1` … that pull:
 
    `rtsp://USER:PASS@10.8.0.2:8554/Streaming/Channels/102`
-   (channel `N` → stream id `N02` = camera N **sub-stream**; DVR must use **H.264** with **H.264+** enabled — see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub))
+   (channel `N` → stream id `N02` = camera N **sub-stream**; DVR must use **H.264** with **H.264+** enabled — see [SYSTEM-ARCHITECTURE §7.4](SYSTEM-ARCHITECTURE.md#74-encoding-per-channel--main-and-sub))
 
 6. Restarts MediaMTX.
 7. Prints browser URLs and a **QR code** to scan in the WireGuard app.

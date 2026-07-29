@@ -230,7 +230,21 @@ Configure via DVR local UI or web UI (`http://<dvr-ip>`). Do this **before** rel
 | Illegal Login Lock | System → Security | Off while commissioning; **re-enable** before handoff |
 | Admin password | System → User | Changed from default; never commit to git |
 
-### 7.3 Encoding (per channel — main and sub)
+### 7.3 Time and timezone (required for playback)
+
+Path is typically **Configuration → System → System Settings → Time Settings** (wording varies by firmware). Set this **before** relying on recording search or remote playback.
+
+| Setting | Value | Why |
+|---|---|---|
+| **Time zone** | The real site zone (e.g. `GMT+01:00` / Africa/Lagos) | DVR stamps recordings in its local clock. Wrong zone → day boundaries and ISAPI search windows miss the clips you expect |
+| **Date & time** | Correct **now** (or NTP sync to a reliable server) | If the DVR clock is hours/days off, `ContentMgmt/search` and Keeper boundaries align to the wrong wall-clock; list/playback queries look “empty” or show the wrong day |
+| **NTP** | **Enabled** when the DVR can reach an NTP host | Stops the clock drifting after power loss / long uptime |
+
+> **Must match the site timezone in Tru-view / the API**
+>
+> The server lists recordings by **site timezone** (`date=YYYY-MM-DD` → local midnight→midnight, then ISAPI search). If the DVR zone/clock and the site timezone disagree, queries return the wrong segments or none. After changing DVR time settings, confirm the site’s timezone in inventory still matches.
+
+### 7.4 Encoding (per channel — main and sub)
 
 Path is typically **Configuration → Record → Encoding** (wording varies by firmware). Apply on **every** camera channel you use. Remote viewing (`sitectl`) pulls **sub-streams** (`…/102`, `…/202`, …) — those must be correct or WebRTC will fail or burn bandwidth.
 
@@ -251,7 +265,7 @@ Path is typically **Configuration → Record → Encoding** (wording varies by f
 > - **H.264+** — Hikvision’s smarter H.264 mode. Leave it **on** so stream size stays manageable over WireGuard. H.264 without H.264+ often produces streams that are too large for remote sites.
 > - **H.265** — do not use on this stack unless every hop is proven with HEVC end-to-end (today: not supported for browser playback).
 
-### 7.4 RTSP channel IDs (Hikvision)
+### 7.5 RTSP channel IDs (Hikvision)
 
 ```
 rtsp://USER:PASS@HOST:PORT/Streaming/Channels/<id>
@@ -329,7 +343,7 @@ site001_ch1:
 
 ```mermaid
 flowchart TD
-  A["1. Site physical<br/>DVR + router + box on Wi‑Fi"] --> B["2. DVR settings<br/>DHCP, ISAPI, H.264 + H.264+, Video, sub-stream"]
+  A["1. Site physical<br/>DVR + router + box on Wi‑Fi"] --> B["2. DVR settings<br/>DHCP, ISAPI, time/TZ, H.264 + H.264+, Video, sub-stream"]
   B --> C["3. Truvend Cam Setup<br/>Test + live view on LAN"]
   C --> D["4. VPS setup-server.sh<br/>WG + MediaMTX + firewall"]
   D --> E["5. Configure /etc/relay/relay.env<br/>then sitectl add"]

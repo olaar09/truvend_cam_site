@@ -183,7 +183,7 @@ Path names are `<site>_ch<n>`. The stream ID in the URL is **channel × 100 + st
 | 2 | 201 | 202 |
 | 4 | 401 | 402 |
 
-`sitectl` always generates sub-streams — lower bandwidth, and they must be **H.264 with H.264+ enabled** on the DVR (see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-encoding-per-channel--main-and-sub)).
+`sitectl` always generates sub-streams — lower bandwidth, and they must be **H.264 with H.264+ enabled** on the DVR (see [SYSTEM-ARCHITECTURE §7.4](SYSTEM-ARCHITECTURE.md#74-encoding-per-channel--main-and-sub)).
 
 ## Viewing URLs
 

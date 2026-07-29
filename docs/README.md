@@ -7,7 +7,7 @@
 
 ## Start with the whole picture
 
-**→ [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md)** — single document: architecture diagrams, all server tools, all phone/Android tools, DVR settings (including **Stream type = Video**, **encoding = H.264**, **H.264+ enabled**), ports, install order, and proof ladder.
+**→ [SYSTEM-ARCHITECTURE.md](SYSTEM-ARCHITECTURE.md)** — single document: architecture diagrams, all server tools, all phone/Android tools, DVR settings (including **correct timezone & clock**, **Stream type = Video**, **encoding = H.264**, **H.264+ enabled**), ports, install order, and proof ladder.
 
 ---
 

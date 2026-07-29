@@ -163,6 +163,20 @@ class WifiNetworkBinder(context: Context) {
 
     fun getBoundNetwork(): Network? = boundWifi.get()
 
+    /**
+     * True when a VPN (e.g. WireGuard) is up. OkHttp [Network.getSocketFactory]
+     * often fails with EPERM in that case; prefer [bindProcessToNetwork] alone.
+     */
+    fun hasActiveVpn(): Boolean {
+        for (network in connectivity.allNetworks) {
+            val caps = connectivity.getNetworkCapabilities(network) ?: continue
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                return true
+            }
+        }
+        return false
+    }
+
     fun unbind() {
         try {
             connectivity.bindProcessToNetwork(null)

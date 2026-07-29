@@ -6,6 +6,8 @@
 
 The box keeps DVR recordings bounded by periodically forcing a manual stop → start on each main track. That unblocks server-side playback: ContentMgmt/search returns hour-scale segments instead of multi-day files.
 
+**Prerequisite:** DVR **timezone** and **current date/time** must be correct (and match the site timezone in inventory). Wrong clock/zone makes day-based search and playback queries miss segments — see [SYSTEM-ARCHITECTURE §7.3](SYSTEM-ARCHITECTURE.md#73-time-and-timezone-required-for-playback).
+
 ## What runs where
 
 | Piece | Location | Notes |
